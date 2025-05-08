@@ -288,48 +288,6 @@
                     </div>
                 </div>
                 
-                <div>
-                    <h6 class="text-danger">Reset Database</h6>
-                    <p class="text-muted small">This will delete most data but preserve admin accounts. No backup will be created.</p>
-                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#resetDbModal">
-                        <i class="fas fa-trash-alt me-2"></i> Reset Database
-                    </button>
-                    
-                    <!-- Modal for DB Reset confirmation -->
-                    <div class="modal fade" id="resetDbModal" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header bg-danger text-white">
-                                    <h5 class="modal-title">WARNING: Reset Database</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="alert alert-danger">
-                                        <i class="fas fa-exclamation-triangle fa-2x float-start me-3"></i>
-                                        <p><strong>DANGER:</strong> This action will DELETE MOST DATA in the database!</p>
-                                    </div>
-                                    
-                                    <p>All containers, vessels, statuses, and movements will be permanently deleted.</p>
-                                    <p>A new database will be created with sample data.</p>
-                                    <p><strong>Admin accounts will be preserved.</strong> Regular user accounts will be deleted.</p>
-                                    <p><strong>Note:</strong> No backup will be created before reset.</p>
-                                    
-                                    <p class="fw-bold mt-3">To confirm, type 'RESET' below:</p>
-                                    <form id="resetDbForm" action="{{ url_for('admin_reset_db') }}" method="POST">
-                                        <div class="mb-3">
-                                            <input type="text" class="form-control" id="confirmReset" name="confirm" required>
-                                        </div>
-                                    </form>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <button type="submit" form="resetDbForm" class="btn btn-danger" id="confirmResetBtn">Reset Database</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
                 <!-- Add this within your existing database management section -->
 
                 <div class="card mt-4 border-danger">
