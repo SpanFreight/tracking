@@ -2857,32 +2857,34 @@ def delete_all_containers():
         return redirect(url_for('index'))
     
     try:
-        # Count containers before deletion
-        container_count = Container.query.count()
-        
-        # Delete all related records first to avoid foreign key constraint errors
-        app.logger.info("Deleting delivery prints...")
-        DeliveryPrint.query.delete()
-        
-        app.logger.info("Deleting print authorizations...")
-        PrintAuthorization.query.delete()
-        
-        app.logger.info("Deleting print access requests...")
-        PrintAccessRequest.query.delete()
-        
-        app.logger.info("Deleting container movements...")
-        ContainerMovement.query.delete()
-        
-        app.logger.info("Deleting container statuses...")
-        ContainerStatus.query.delete()
-        
-        app.logger.info("Deleting containers...")
-        Container.query.delete()
-        
-        # Commit changes
-        db.session.commit()
-        
-        flash(f'Successfully deleted {container_count} containers and all related data', 'success')
+        # Ensure we're operating with the proper Flask application context
+        with app.app_context():
+            # Count containers before deletion
+            container_count = Container.query.count()
+            
+            # Delete all related records first to avoid foreign key constraint errors
+            app.logger.info("Deleting delivery prints...")
+            DeliveryPrint.query.delete()
+            
+            app.logger.info("Deleting print authorizations...")
+            PrintAuthorization.query.delete()
+            
+            app.logger.info("Deleting print access requests...")
+            PrintAccessRequest.query.delete()
+            
+            app.logger.info("Deleting container movements...")
+            ContainerMovement.query.delete()
+            
+            app.logger.info("Deleting container statuses...")
+            ContainerStatus.query.delete()
+            
+            app.logger.info("Deleting containers...")
+            Container.query.delete()
+            
+            # Commit changes
+            db.session.commit()
+            
+            flash(f'Successfully deleted {container_count} containers and all related data', 'success')
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Error deleting containers: {str(e)}")
