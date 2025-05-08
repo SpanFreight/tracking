@@ -2857,29 +2857,29 @@ def delete_all_containers():
         return redirect(url_for('index'))
     
     try:
-        # Ensure we're operating with the proper Flask application context
+        # Use Flask application context to properly connect SQLAlchemy to the app
         with app.app_context():
             # Count containers before deletion
             container_count = Container.query.count()
             
             # Delete all related records first to avoid foreign key constraint errors
             app.logger.info("Deleting delivery prints...")
-            DeliveryPrint.query.delete()
+            db.session.execute(db.delete(DeliveryPrint))
             
             app.logger.info("Deleting print authorizations...")
-            PrintAuthorization.query.delete()
+            db.session.execute(db.delete(PrintAuthorization))
             
             app.logger.info("Deleting print access requests...")
-            PrintAccessRequest.query.delete()
+            db.session.execute(db.delete(PrintAccessRequest))
             
             app.logger.info("Deleting container movements...")
-            ContainerMovement.query.delete()
+            db.session.execute(db.delete(ContainerMovement))
             
             app.logger.info("Deleting container statuses...")
-            ContainerStatus.query.delete()
+            db.session.execute(db.delete(ContainerStatus))
             
             app.logger.info("Deleting containers...")
-            Container.query.delete()
+            db.session.execute(db.delete(Container))
             
             # Commit changes
             db.session.commit()
