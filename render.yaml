@@ -3,7 +3,7 @@ services:
     name: span-freight
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app -c gunicorn_config.py
+    startCommand: gunicorn app:app
     envVars:
       - key: FLASK_ENV
         value: production
