@@ -1,35 +1,16 @@
-# Core Flask framework and extensions
-Flask==2.3.3
-Flask-SQLAlchemy==3.1.1
+# Core requirements
+Flask==2.2.3
+Flask-SQLAlchemy==3.0.3
 Flask-Login==0.6.2
-Flask-Bcrypt==1.0.1
 Flask-WTF==1.1.1
-Flask-Session==0.5.0
-
-# Database
-SQLAlchemy==2.0.21
-psycopg2-binary==2.9.7  # PostgreSQL support
-
-# Data processing and file handling - fixed versions to avoid binary incompatibility
-numpy==1.25.2  # Ensure this specific version is installed first
-pandas==2.1.0  # Compatible with numpy 1.25.2
-openpyxl==3.1.2
-xlrd==2.0.1
-python-dateutil==2.8.2
-
-# Utils
+SQLAlchemy==2.0.4
+Werkzeug==2.2.3
+gunicorn==20.1.0
 python-dotenv==1.0.0
-Werkzeug==2.3.7
-Jinja2==3.1.2
-MarkupSafe==2.1.3
-itsdangerous==2.1.2
-email-validator==2.0.0
-click==8.1.7
+psycopg2-binary==2.9.6
 
-# Deployment
-gunicorn==21.2.0
-
-# Development tools
-pytest==7.4.2
-black==23.9.1
-flake8==6.1.0
+# Fix versions to ensure compatibility
+numpy==1.24.3
+pandas==1.5.3
+openpyxl==3.1.1
+Pillow==9.4.0

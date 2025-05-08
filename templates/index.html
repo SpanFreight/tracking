@@ -76,6 +76,28 @@
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
         <div class="d-flex align-items-center">
             <h5 class="mb-0 me-3">Container List</h5>
+            <div class="btn-group" role="group" aria-label="Sort Options">
+                <a href="{{ url_for('index', location=location_filter, sort='container_number', order='asc' if sort_by == 'container_number' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'container_number' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Number</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'container_number' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+                <a href="{{ url_for('index', location=location_filter, sort='container_type', order='asc' if sort_by == 'container_type' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'container_type' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Type</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'container_type' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+                <a href="{{ url_for('index', location=location_filter, sort='status', order='asc' if sort_by == 'status' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'status' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Status</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'status' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+                <a href="{{ url_for('index', location=location_filter, sort='created_at', order='asc' if sort_by == 'created_at' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'created_at' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Date</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'created_at' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+            </div>
         </div>
         <div class="d-flex gap-2 mt-2 mt-md-0">
             <div class="btn-group me-2" id="status-filter-buttons">
@@ -86,11 +108,6 @@
                 <button type="button" class="btn btn-outline-primary" data-status="full">Full</button>
             </div>
             <input type="text" id="container-search" class="form-control" placeholder="Search containers...">
-            {% if current_user.is_admin %}
-            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAllContainersModal">
-                <i class="fas fa-trash-alt me-1"></i> 
-            </button>
-            {% endif %}
         </div>
     </div>
     <div class="card-body">
@@ -440,39 +457,6 @@
         </div>
     </div>
 </div>
-
-{% if current_user.is_admin %}
-<div class="modal fade" id="deleteAllContainersModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">WARNING: Delete All Containers</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle fa-2x float-start me-3"></i>
-                    <p><strong>DANGER:</strong> This action will DELETE ALL CONTAINERS in the system!</p>
-                </div>
-                
-                <p>All container records, including statuses, vessel movements, and delivery order print records will be permanently deleted.</p>
-                <p>This operation cannot be undone.</p>
-                
-                <p class="fw-bold mt-3">To confirm, type 'DELETE ALL CONTAINERS' below:</p>
-                <form id="deleteAllContainersForm" action="{{ url_for('delete_all_containers') }}" method="POST">
-                    <div class="mb-3">
-                        <input type="text" class="form-control" id="confirmDeleteContainers" name="confirm" required>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" form="deleteAllContainersForm" class="btn btn-danger" id="confirmDeleteContainersBtn">Delete All Containers</button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
