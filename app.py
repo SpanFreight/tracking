@@ -2848,6 +2848,7 @@ def search_containers_for_delivery(search_term):
 
 @app.route('/delete-all-containers', methods=['POST'])
 @login_required
+@admin_required
 def delete_all_containers():
     """Delete all containers and related data from the system"""
     confirm = request.form.get('confirm', '')
@@ -2857,34 +2858,35 @@ def delete_all_containers():
         return redirect(url_for('index'))
     
     try:
-        # Use Flask application context to properly connect SQLAlchemy to the app
-        with app.app_context():
-            # Count containers before deletion
-            container_count = Container.query.count()
-            
-            # Delete all related records first to avoid foreign key constraint errors
-            app.logger.info("Deleting delivery prints...")
-            db.session.execute(db.delete(DeliveryPrint))
-            
-            app.logger.info("Deleting print authorizations...")
-            db.session.execute(db.delete(PrintAuthorization))
-            
-            app.logger.info("Deleting print access requests...")
-            db.session.execute(db.delete(PrintAccessRequest))
-            
-            app.logger.info("Deleting container movements...")
-            db.session.execute(db.delete(ContainerMovement))
-            
-            app.logger.info("Deleting container statuses...")
-            db.session.execute(db.delete(ContainerStatus))
-            
-            app.logger.info("Deleting containers...")
-            db.session.execute(db.delete(Container))
-            
-            # Commit changes
-            db.session.commit()
-            
-            flash(f'Successfully deleted {container_count} containers and all related data', 'success')
+        # Count containers before deletion
+        container_count = Container.query.count()
+        
+        # Delete all related records first to avoid foreign key constraint errors
+        app.logger.info("Deleting print history records...")
+        db.session.execute(db.text("DELETE FROM print_history"))
+        
+        app.logger.info("Deleting delivery prints...")
+        db.session.execute(db.text("DELETE FROM delivery_prints"))
+        
+        app.logger.info("Deleting print authorizations...")
+        db.session.execute(db.text("DELETE FROM print_authorizations"))
+        
+        app.logger.info("Deleting print access requests...")
+        db.session.execute(db.text("DELETE FROM print_access_requests"))
+        
+        app.logger.info("Deleting container movements...")
+        db.session.execute(db.text("DELETE FROM container_movements"))
+        
+        app.logger.info("Deleting container statuses...")
+        db.session.execute(db.text("DELETE FROM container_statuses"))
+        
+        app.logger.info("Deleting containers...")
+        db.session.execute(db.text("DELETE FROM containers"))
+        
+        # Commit changes
+        db.session.commit()
+        
+        flash(f'Successfully deleted {container_count} containers and all related data', 'success')
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Error deleting containers: {str(e)}")
