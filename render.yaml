@@ -3,14 +3,14 @@ services:
     name: span-freight
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn wsgi:app
     envVars:
       - key: FLASK_ENV
         value: production
       - key: SECRET_KEY
         value: eefbf6103a906b6944c036112c5adac4
       - key: DATABASE_URL
-        value: postgresql://tracking_db_pk8j_user:ssbb7sM0JLTIiofcTJFT3GMfUaPBXB3a@dpg-d0e5l11r0fns73cpck70-a/tracking_db_pk8j
+        value: postgresql://tracking_db_pk8j_user:ssbb7sM0JLTIiofcTJFT3GMfUaPBXB3a@dpg-d0e5l11r0fns73cpck70-a.oregon-postgres.render.com/tracking_db_pk8j
     disk:
       name: data
       mountPath: /data
