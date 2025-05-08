@@ -2857,33 +2857,51 @@ def delete_all_containers():
         return redirect(url_for('index'))
     
     try:
+        # Force a new session to avoid any stale data issues
+        db.session.close()
+        
         # Count containers before deletion
-        container_count = Container.query.count()
+        container_count = db.session.query(Container).count()
+        app.logger.info(f"Found {container_count} containers to delete")
         
-        # Delete all related records first to avoid foreign key constraint errors
-        app.logger.info("Deleting print history records...")
-        db.session.execute(db.text("DELETE FROM print_history"))
-        
-        app.logger.info("Deleting delivery prints...")
-        db.session.execute(db.text("DELETE FROM delivery_prints"))
-        
-        app.logger.info("Deleting print authorizations...")
-        db.session.execute(db.text("DELETE FROM print_authorizations"))
-        
-        app.logger.info("Deleting print access requests...")
-        db.session.execute(db.text("DELETE FROM print_access_requests"))
-        
-        app.logger.info("Deleting container movements...")
-        db.session.execute(db.text("DELETE FROM container_movements"))
-        
-        app.logger.info("Deleting container statuses...")
-        db.session.execute(db.text("DELETE FROM container_statuses"))
-        
-        app.logger.info("Deleting containers...")
-        db.session.execute(db.text("DELETE FROM containers"))
-        
-        # Commit changes
-        db.session.commit()
+        # Use direct SQL to delete records to bypass ORM constraints
+        # The order matters due to foreign key constraints
+        with db.engine.connect() as connection:
+            # Begin a transaction
+            trans = connection.begin()
+            try:
+                # Delete in reverse order of dependencies
+                app.logger.info("Deleting delivery prints...")
+                connection.execute(db.text("DELETE FROM print_history"))
+                connection.execute(db.text("DELETE FROM delivery_prints"))
+                
+                app.logger.info("Deleting print authorizations...")
+                connection.execute(db.text("DELETE FROM print_authorizations"))
+                
+                app.logger.info("Deleting print access requests...")
+                connection.execute(db.text("DELETE FROM print_access_requests"))
+                
+                app.logger.info("Deleting container movements...")
+                connection.execute(db.text("DELETE FROM container_movements"))
+                
+                app.logger.info("Deleting container statuses...")
+                connection.execute(db.text("DELETE FROM container_statuses"))
+                
+                app.logger.info("Deleting containers...")
+                connection.execute(db.text("DELETE FROM containers"))
+                
+                # Commit the transaction
+                trans.commit()
+                app.logger.info(f"Successfully deleted {container_count} containers and their related data")
+                
+                # Force SQLAlchemy to refresh its state
+                db.session.expire_all()
+                
+            except Exception as e:
+                # If anything goes wrong, roll back the transaction
+                trans.rollback()
+                app.logger.error(f"Transaction error during deletion: {str(e)}")
+                raise
         
         flash(f'Successfully deleted {container_count} containers and all related data', 'success')
     except Exception as e:
@@ -2891,6 +2909,7 @@ def delete_all_containers():
         app.logger.error(f"Error deleting containers: {str(e)}")
         flash(f'Error deleting containers: {str(e)}', 'danger')
     
+    # Force a redirect to refresh the page completely
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
