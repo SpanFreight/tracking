@@ -15,6 +15,27 @@ import sqlalchemy  # Import sqlalchemy module to access version information
 from dotenv import load_dotenv
 from sqlalchemy.exc import OperationalError
 
+# Import extensions first
+from extensions import db, bcrypt, login_manager
+
+# Create Flask app
+app = Flask(__name__)
+# Import and apply configuration - ensure this happens BEFORE initializing extensions
+from config import Config
+app.config.from_object(Config)
+
+# Initialize extensions with app
+db.init_app(app)
+login_manager.init_app(app)
+bcrypt.init_app(app)
+
+# Now import models after extensions are initialized
+from models import User, Container, ContainerStatus, Vessel, ContainerMovement, DeliveryPrint, PrintAuthorization, PrintAccessRequest
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -1971,15 +1992,45 @@ def admin_system():
             return redirect(url_for('admin_system'))
         
         if action == 'create_backup':
-            success, result = create_backup()
-            if success:
-                flash(f'Backup created successfully: {os.path.basename(result)}', 'success')
-            else:
-                flash(f'Error creating backup: {result}', 'danger')
-            
-            return redirect(url_for('admin_system'))
-        
-        if action == 'clear_logs':
+            try:
+                # Use app context to ensure proper path resolution
+                with app.app_context():
+                    # Import locate_database function from fix_db
+                    try:
+                        from fix_db import locate_database
+                        db_path = locate_database()
+                    except ImportError:
+                        # If function not available, fall back to default path resolution
+                        if db_uri.startswith('sqlite:///'):
+                            db_path = db_uri.replace('sqlite:///', '')
+                            if not os.path.isabs(db_path):
+                                db_path = os.path.join(app.root_path, db_path)
+                        else:
+                            raise ValueError("Only SQLite databases are supported for backup")
+                    # Check if database file actually exists at this location
+                    if not os.path.exists(db_path) or not os.path.isfile(db_path):
+                        # Try the simplest possible path as a last resort
+                        fallback_path = 'container_tracking.db'
+                        if (os.path.exists(fallback_path)):
+                            db_path = os.path.abspath(fallback_path)
+                            logger.info(f"Using fallback database path: {db_path}")
+                        else:
+                            raise FileNotFoundError(f"Database file not found: {db_path}")
+                # Create backup directory and copy file
+                backup_path = os.path.join(app.root_path, 'backups')
+                os.makedirs(backup_path, exist_ok=True)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_file = os.path.join(backup_path, f'database_backup_{timestamp}.db')
+                
+                import shutil
+                shutil.copy2(db_path, backup_file)
+                logger.info(f"Created backup at {backup_file}")
+                
+                flash(f'Database backup created successfully: {os.path.basename(backup_file)}', 'success')
+            except Exception as e:
+                flash(f'Error creating backup: {str(e)}', 'danger')
+                logger.error(f"Backup error: {str(e)}")
+        elif action == 'clear_logs':
             try:
                 # Clear log files (example implementation)
                 log_dir = os.path.join(app.root_path, 'logs')
@@ -2148,46 +2199,51 @@ def admin_diagnostics():
 @app.route('/admin/reset-db', methods=['POST'])
 @login_required
 def admin_reset_db():
-    """Admin endpoint to reset the database while preserving admin users"""
-    if not current_user.is_admin:
-        flash('You do not have permission to perform this action.', 'danger')
-        return redirect(url_for('index'))
+    """Reset the database but keep admin account without creating a backup"""
+    # Get the confirmation text
+    confirm = request.form.get('confirm', '')
     
-    confirmation = request.form.get('confirm')
-    if confirmation != 'RESET':
-        flash('Invalid confirmation. Database reset aborted.', 'danger')
+    if confirm != 'RESET':
+        flash('Please type RESET to confirm database reset', 'danger')
         return redirect(url_for('admin_system'))
     
     try:
-        # Import reset_database_clean and locate_database from fix_db
-        from fix_db import reset_database_clean, locate_database
+        # Store the current admin user information
+        admin_users = User.query.filter_by(is_admin=True).all()
+        admin_data = []
+        for admin in admin_users:
+            admin_data.append({
+                'username': admin.username,
+                'email': admin.email,
+                'password_hash': admin.password_hash,  # Save the hashed password
+                'is_admin': True
+            })
         
-        # Try to locate the database for backup
-        db_path = locate_database()
+        # Drop all tables
+        db.drop_all()
         
-        # Create backup before resetting if database exists
-        if db_path and os.path.exists(db_path):
-            backup_path = os.path.join(app.root_path, 'backups')
-            os.makedirs(backup_path, exist_ok=True)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_file = os.path.join(backup_path, f'pre_reset_backup_{timestamp}.db')
-            
-            import shutil
-            shutil.copy2(db_path, backup_file)
-            logger.info(f"Created backup at {backup_file}")
+        # Create new tables
+        db.create_all()
         
-        # Reset database using the specialized function
-        with app.app_context():
-            success = reset_database_clean()
-        if success:
-            flash('Database has been reset successfully while preserving admin users!', 'success')
-        else:
-            flash('Failed to reset database. See server logs for details.', 'danger')
+        # Recreate the admin accounts
+        for admin in admin_data:
+            admin_user = User(
+                username=admin['username'],
+                email=admin['email'],
+                password_hash=admin['password_hash'],  # Reuse the hashed password
+                is_admin=admin['is_admin']
+            )
+            db.session.add(admin_user)
+        
+        # Commit changes
+        db.session.commit()
+        
     except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error resetting database: {str(e)}")
         flash(f'Error resetting database: {str(e)}', 'danger')
-        logger.error(f"Database reset error: {str(e)}")
     
-    return redirect(url_for('admin_system'))
+    return redirect(url_for('logout'))
 
 @app.route('/containers/bulk-status-update', methods=['POST'])
 @login_required
@@ -2790,81 +2846,49 @@ def search_containers_for_delivery(search_term):
     
     return jsonify(result)
 
-def create_backup():
-    """Create a backup of the database file"""
-    try:
-        # Determine the backup directory path based on environment
-        if os.environ.get('RENDER') or '/opt/render' in os.getcwd():
-            # We're on Render.com
-            backup_dir = os.path.join('/opt/render/project/src', 'backups')
-        else:
-            # Local development environment
-            backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups')
-        
-        # Create the backup directory if it doesn't exist
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir)
-            app.logger.info(f"Created backup directory: {backup_dir}")
-        
-        # Create backup filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # Get database path from config, handling both SQLite file path and URL formats
-        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        if db_uri.startswith('sqlite:///'):
-            # Handle relative SQLite path
-            db_path = db_uri.replace('sqlite:///', '')
-            if not os.path.isabs(db_path):
-                # If relative, make it absolute from the app directory
-                db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_path)
-        else:
-            # For other databases or custom configurations
-            app.logger.warning(f"Non-SQLite database URI detected: {db_uri}")
-            return False, "Backup only supported for SQLite databases"
-        
-        # Ensure source database file exists
-        if not os.path.exists(db_path):
-            app.logger.error(f"Database file not found: {db_path}")
-            return False, f"Database file not found: {db_path}"
-        
-        backup_filename = f'backup_{timestamp}.db'
-        backup_path = os.path.join(backup_dir, backup_filename)
-        
-        # Copy the database file
-        try:
-            shutil.copy2(db_path, backup_path)
-            app.logger.info(f"Backup created successfully: {backup_path}")
-            return True, backup_path
-        except Exception as e:
-            app.logger.error(f"Error copying database file: {str(e)}")
-            return False, f"Error copying database file: {str(e)}"
-    except Exception as e:
-        app.logger.error(f"Error creating backup: {str(e)}")
-        return False, str(e)
-
-@app.route('/admin/create-backup-dir', methods=['POST'])
+@app.route('/delete-all-containers', methods=['POST'])
 @login_required
-def admin_create_backup_dir():
-    """Endpoint to create backups directory"""
+def delete_all_containers():
+    """Delete all containers and related data from the system"""
+    confirm = request.form.get('confirm', '')
+    
+    if confirm != 'DELETE ALL CONTAINERS':
+        flash('Please type DELETE ALL CONTAINERS to confirm deletion', 'danger')
+        return redirect(url_for('index'))
+    
     try:
-        # Determine backup directory based on environment
-        if os.environ.get('RENDER') or '/opt/render' in os.getcwd():
-            backup_dir = os.path.join('/opt/render/project/src', 'backups')
-        else:
-            backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups')
+        # Count containers before deletion
+        container_count = Container.query.count()
         
-        # Create the directory if it doesn't exist
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir)
-            flash(f'Successfully created backup directory: {backup_dir}', 'success')
-        else:
-            flash(f'Backup directory already exists: {backup_dir}', 'info')
+        # Delete all related records first to avoid foreign key constraint errors
+        app.logger.info("Deleting delivery prints...")
+        DeliveryPrint.query.delete()
         
-        # Return to the diagnostics page
-        return redirect(url_for('admin_diagnostics'))
+        app.logger.info("Deleting print authorizations...")
+        PrintAuthorization.query.delete()
+        
+        app.logger.info("Deleting print access requests...")
+        PrintAccessRequest.query.delete()
+        
+        app.logger.info("Deleting container movements...")
+        ContainerMovement.query.delete()
+        
+        app.logger.info("Deleting container statuses...")
+        ContainerStatus.query.delete()
+        
+        app.logger.info("Deleting containers...")
+        Container.query.delete()
+        
+        # Commit changes
+        db.session.commit()
+        
+        flash(f'Successfully deleted {container_count} containers and all related data', 'success')
     except Exception as e:
-        flash(f'Error creating backup directory: {str(e)}', 'danger')
-        return redirect(url_for('admin_diagnostics'))
+        db.session.rollback()
+        app.logger.error(f"Error deleting containers: {str(e)}")
+        flash(f'Error deleting containers: {str(e)}', 'danger')
+    
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     with app.app_context():
