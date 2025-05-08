@@ -78,6 +78,88 @@
             margin: 0 auto;
             border: 1px solid #ddd;
             padding: 20px;
+            position: relative; /* Added for copy label positioning */
+        }
+        
+        /* Copy label styling */
+        .copy-label {
+            position: absolute;
+            font-weight: bold;
+            font-size: 24px; /* Increased from 18px */
+            color: rgba(102, 102, 102, 0.8); /* Added transparency */
+            padding: 8px 16px; /* Increased padding */
+            display: none; /* Hide by default, show in print */
+        }
+        
+        /* Position the archive copy label on the left side */
+        .copy-label.archive-copy {
+            top: 220px; /* Position in the middle-left area */
+            left: 20px; /* Align to the left side of the page */
+            z-index: 100; /* Ensure it appears above other elements */
+            font-family: Arial, sans-serif;
+        }
+        
+        /* Create duplicate for printing */
+        .receipt-duplicate {
+            display: none; /* Hide by default, show in print */
+        }
+        
+        @media print {
+            /* Show copy labels when printing, but only for archive copy */
+            .copy-label.archive-copy {
+                display: block;
+                color: rgba(102, 102, 102, 0.7); /* Semi-transparent for print */
+            }
+            
+            /* Show duplicate when printing */
+            .receipt-duplicate {
+                display: block;
+                margin-top: 30px;
+                page-break-before: always; /* Start the duplicate on a new page */
+            }
+            
+            /* Adjust spacing between copies */
+            .page-break {
+                page-break-after: always;
+                height: 0;
+            }
+            
+            .editable-field {
+                border: none;
+            }
+            
+            input, textarea, [contenteditable] {
+                border: none !important;
+            }
+            
+            .no-print {
+                display: none;
+            }
+            
+            .no-screen {
+                display: block !important;
+            }
+            
+            /* Ensure page breaks don't occur in the middle of elements */
+            tr, td, th {
+                page-break-inside: avoid;
+            }
+            
+            /* Handle tables spanning multiple pages better */
+            thead {
+                display: table-header-group;
+            }
+            
+            tfoot {
+                display: table-footer-group;
+            }
+        }
+        
+        .receipt {
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            padding: 20px;
         }
         .header {
             display: flex;
@@ -409,6 +491,28 @@
         .no-screen {
             display: none;
         }
+        
+        /* Add custom button hover effects */
+        #print-button:not(:disabled):hover, #closeBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        }
+        
+        #print-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        
+        /* Add subtle animation for when print button is enabled */
+        @keyframes enableButton {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .button-enabled {
+            animation: enableButton 0.5s ease-in-out;
+        }
     </style>
 </head>
 <body>
@@ -535,6 +639,8 @@
     </div>
 
     <div class="receipt">
+        <!-- Remove the client copy label - client copy has no label -->
+        
         <!-- Force the header to be treated as a header group for printing -->
         <thead>
             <div class="header">
@@ -649,6 +755,120 @@
         <!-- Remove the old page footer since we're using @page now -->
     </div>
 
+    <!-- Add page break between copies -->
+    <div class="page-break"></div>
+
+    <!-- Add duplicate receipt for archive copy -->
+    <div class="receipt receipt-duplicate">
+        <!-- Add archive copy label with specific class for targeting in CSS -->
+        <div class="copy-label archive-copy">ARCHIVE COPY</div>
+        
+        <!-- Force the header to be treated as a header group for printing -->
+        <thead>
+            <div class="header">
+                <div class="logo-container" style="flex: 2; text-align: center;">
+                    <img src="/static/img/ spanfreight_logo.png" alt="SPANFREIGHT Logo">
+                </div>
+            </div>
+        </thead>
+        
+        <div class="right-side-container">
+            <div class="date-section">
+                DATE: <input type="date" class="date-picker" value="{{ now.strftime('%Y-%m-%d') }}" 
+                       style="border: none; background: transparent; font-weight: normal; min-width: 120px; font-size: 16px;">
+            </div>
+            
+            <div class="delivery-order-title">
+                DELIVERY ORDER <span class="delivery-order-number" id="delivery-order-number-copy">0000001</span>
+            </div>
+            
+            <div class="validity-text">Validity 7 days</div>
+        </div>
+        
+        <div class="container-info" style="clear: both;">
+            <!-- Removed the h2 Container Information heading -->
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">BL Number:</span>
+                <span style="margin-left: 20px;">{{ container.bl_number or 'N/A' }}</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">Please deliver to:</span>
+                <span contenteditable="true" class="editable-field" style="margin-left: 20px;">Enter recipient name</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">The undermentioned goods ex MV:</span>
+                <span style="margin-left: 20px;">{{ vessel.name if vessel else 'N/A' }}</span>
+                <span style="font-weight: bold; margin-left: 60px;">Voy No:</span>
+                <span style="margin-left: 20px;">{{ vessel.imo_number if vessel else 'N/A' }}</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">From:</span>
+                <span style="margin-left: 20px;">{{ vessel.current_location if vessel else 'N/A' }}</span>
+                <span style="font-weight: bold; margin-left: 60px;">Due / Arrived:</span>
+                <span style="margin-left: 20px;">{{ container.arrival_date.strftime('%d %b %Y') if container.arrival_date else 'N/A' }}</span>
+            </div>
+        </div>
+        
+        <div>
+            <table class="packages-table" id="packages-table-copy">
+                <thead>
+                    <tr>
+                        <th>MARKS AND NUMBERS</th>
+                        <th>PACKAGES</th>
+                        <th>DESCRIPTION</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ container.container_number }}</td>
+                        <td>
+                            <div contenteditable="true" class="editable-field">0</div>
+                        </td>
+                        <td>
+                            <div contenteditable="true" class="editable-field" style="width: 95%; min-width: 200px;">Enter package description</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <span class="non-editable-label">WT: </span>
+                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <span class="non-editable-label">M/M: </span>
+                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                        </td>
+                    </tr>
+                    <!-- Add merged row at the bottom -->
+                    <tr class="special-footer-row">
+                        <td colspan="3" style="text-align: left; font-weight: normal; background-color: transparent; padding-left: 10px; font-style: normal;">
+                            CARGO IN / EX CONTAINER NUMBERS
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Added margin-top to push content to the bottom of the page -->
+        <div style="margin-top: 70px;"></div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 20px;">
+            <div class="info-item" style="width: 48%;">
+                <div class="editable-field" style="width:80%; min-height: 60px; font-style: normal;">NOTE: This "Delivery Order" is subject to all conditions and exceptions of the relative Bills of Lading</div>
+            </div>
+            
+            <div class="signature-box" style="width: 48%; margin-top: 0;">
+                <p>_________________________</p>
+                <p id="agent-name-copy">Agents</p>
+            </div>
+        </div>
+    </div>
+
     <div class="no-print" style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6; border-radius: 0.25rem;">
         <div class="btn-toolbar justify-content-center" role="toolbar" aria-label="Delivery order actions">
             <!-- Enhanced Print Button -->
@@ -675,30 +895,6 @@
             <span class="badge bg-success p-2"><i class="fas fa-check-circle me-2"></i> Print completed successfully</span>
         </div>
     </div>
-
-    <style>
-        /* Add custom button hover effects */
-        #print-button:not(:disabled):hover, #closeBtn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
-        }
-        
-        #print-button:disabled {
-            cursor: not-allowed;
-            opacity: 0.7;
-        }
-        
-        /* Add subtle animation for when print button is enabled */
-        @keyframes enableButton {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
-        .button-enabled {
-            animation: enableButton 0.5s ease-in-out;
-        }
-    </style>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -1561,6 +1757,75 @@ function setupContainerFieldBehaviors() {
     
     // Most of these functions can stay the same, they don't interact with the print functionality
 }
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Synchronize content between original and duplicate
+        const editableFields = document.querySelectorAll('.editable-field');
+        editableFields.forEach(field => {
+            field.addEventListener('input', function() {
+                // Find all corresponding fields with the same position/role and update them
+                const fieldIndex = Array.from(field.parentNode.children).indexOf(field);
+                const parentTagName = field.parentNode.tagName;
+                const parentIndex = Array.from(field.parentNode.parentNode.children).indexOf(field.parentNode);
+                
+                // Update all matching fields
+                document.querySelectorAll(parentTagName + ' .editable-field').forEach(otherField => {
+                    if (field !== otherField && 
+                        Array.from(otherField.parentNode.children).indexOf(otherField) === fieldIndex &&
+                        Array.from(otherField.parentNode.parentNode.children).indexOf(otherField.parentNode) === parentIndex) {
+                        otherField.textContent = field.textContent;
+                    }
+                });
+            });
+        });
+        
+        // Sync the delivery order numbers between copies
+        const mainDONumber = document.getElementById('delivery-order-number');
+        const copyDONumber = document.getElementById('delivery-order-number-copy');
+        if (mainDONumber && copyDONumber) {
+            // Initial sync
+            copyDONumber.textContent = mainDONumber.textContent;
+            
+            // Set up observer to keep them in sync
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                        copyDONumber.textContent = mainDONumber.textContent;
+                    }
+                });
+            });
+            
+            observer.observe(mainDONumber, { 
+                childList: true,
+                characterData: true,
+                subtree: true
+            });
+        }
+        
+        // Sync the agent name between copies
+        const mainAgentName = document.getElementById('agent-name');
+        const copyAgentName = document.getElementById('agent-name-copy');
+        if (mainAgentName && copyAgentName) {
+            // Initial sync
+            copyAgentName.textContent = mainAgentName.textContent;
+            
+            // Set up observer to keep them in sync
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                        copyAgentName.textContent = mainAgentName.textContent;
+                    }
+                });
+            });
+            
+            observer.observe(mainAgentName, { 
+                childList: true,
+                characterData: true,
+                subtree: true
+            });
+        }
+    });
 </script>
 </body>
 </html>
