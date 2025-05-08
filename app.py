@@ -2848,7 +2848,6 @@ def search_containers_for_delivery(search_term):
 
 @app.route('/delete-all-containers', methods=['POST'])
 @login_required
-@admin_required
 def delete_all_containers():
     """Delete all containers and related data from the system"""
     confirm = request.form.get('confirm', '')
