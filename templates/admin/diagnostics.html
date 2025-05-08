@@ -119,10 +119,9 @@
         <i class="fas fa-cog me-2"></i> System Settings
     </a>
     
-    <!-- Add button to create backups directory -->
+    <!-- Update the form action to use the new endpoint -->
     {% if not diagnostics.backups_dir_exists %}
-        <form action="{{ url_for('admin_system') }}" method="post" class="d-inline">
-            <input type="hidden" name="action" value="create_backup_dir">
+        <form action="{{ url_for('admin_create_backup_dir') }}" method="post" class="d-inline">
             <button type="submit" class="btn btn-warning ms-2">
                 <i class="fas fa-folder-plus me-2"></i> Create Backups Directory
             </button>
