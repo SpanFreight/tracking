@@ -1,0 +1,964 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4">Container Tracking Dashboard</h1>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5 class="card-title">Total Containers</h5>
+                <h2 class="card-text">{{ containers|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5 class="card-title">Loaded Containers</h5>
+                <h2 class="card-text">{{ loaded_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h5 class="card-title">Discharged Containers</h5>
+                <h2 class="card-text">{{ discharged_count }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Location Filter Navigation - Placed BEFORE the table -->
+<div class="card mb-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">Filter by Location</h5>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-pills">
+            {% for location in standard_locations %}
+                <li class="nav-item">
+                    <a class="nav-link {% if location_filter == location %}active{% endif %}" 
+                       href="{{ url_for('index', location=location) }}">
+                       {{ location }} 
+                       <span class="badge bg-secondary">{{ location_counts.get(location, 0) }}</span>
+                    </a>
+                </li>
+            {% endfor %}
+            
+            <!-- Dropdown for "Other" locations -->
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle {% if location_filter not in standard_locations %}active{% endif %}" 
+                   data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">
+                   Other Locations
+                </a>
+                <ul class="dropdown-menu">
+                    {% for location in other_locations %}
+                        <li>
+                            <a class="dropdown-item {% if location_filter == location %}active{% endif %}" 
+                               href="{{ url_for('index', location=location) }}">
+                               {{ location }} 
+                               <span class="badge bg-secondary">{{ location_counts.get(location, 0) }}</span>
+                            </a>
+                        </li>
+                    {% endfor %}
+                    {% if other_locations|length == 0 %}
+                        <li><span class="dropdown-item disabled">No other locations</span></li>
+                    {% endif %}
+                </ul>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+        <div class="d-flex align-items-center">
+            <h5 class="mb-0 me-3">Container List</h5>
+            <div class="btn-group" role="group" aria-label="Sort Options">
+                <a href="{{ url_for('index', location=location_filter, sort='container_number', order='asc' if sort_by == 'container_number' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'container_number' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Number</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'container_number' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+                <a href="{{ url_for('index', location=location_filter, sort='container_type', order='asc' if sort_by == 'container_type' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'container_type' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Type</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'container_type' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+                <a href="{{ url_for('index', location=location_filter, sort='status', order='asc' if sort_by == 'status' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'status' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Status</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'status' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+                <a href="{{ url_for('index', location=location_filter, sort='created_at', order='asc' if sort_by == 'created_at' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'created_at' else 'btn-outline-dark' }} d-flex align-items-center">
+                    <span class="me-1">Date</span>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'created_at' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                </a>
+            </div>
+        </div>
+        <div class="d-flex gap-2 mt-2 mt-md-0">
+            <div class="btn-group me-2" id="status-filter-buttons">
+                <button type="button" class="btn btn-outline-primary active" data-status="all">All</button>
+                <button type="button" class="btn btn-outline-success" data-status="loaded">Loaded</button>
+                <button type="button" class="btn btn-outline-warning" data-status="discharged">Discharged</button>
+                <button type="button" class="btn btn-outline-info" data-status="emptied">Emptied</button>
+                <button type="button" class="btn btn-outline-primary" data-status="full">Full</button>
+            </div>
+            <input type="text" id="container-search" class="form-control" placeholder="Search containers...">
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="status-filter-badge" class="mb-3" style="display: none;">
+            <span class="badge bg-primary">Filtered by: <span id="current-filter">All</span></span>
+            <button class="btn btn-sm btn-outline-secondary ms-2" id="clear-filter">Clear Filter</button>
+        </div>
+        
+        <!-- Add bulk actions toolbar - initially hidden -->
+        <div id="bulk-actions" class="mb-3" style="display: none;">
+            <div class="d-flex flex-wrap align-items-center">
+                <div class="me-2">
+                    <button type="button" id="select-all" class="btn btn-sm btn-outline-primary">Select All</button>
+                    <button type="button" id="deselect-all" class="btn btn-sm btn-outline-secondary">Deselect All</button>
+                </div>
+                <div class="me-2">
+                    <span id="selected-count" class="badge bg-info">0 containers selected</span>
+                </div>
+                <div class="ms-auto">
+                    <!-- Show different buttons based on the filter -->
+                    <button type="button" id="bulk-load-btn" class="btn btn-success bulk-action-btn" style="display: none;">
+                        <i class="fas fa-ship"></i> Load Selected Containers
+                    </button>
+                    <button type="button" id="bulk-discharge-btn" class="btn btn-warning bulk-action-btn" style="display: none;">
+                        <i class="fas fa-anchor"></i> Discharge Selected Containers
+                    </button>
+                    <button type="button" id="bulk-emptied-btn" class="btn btn-info bulk-action-btn" style="display: none;">
+                        <i class="fas fa-box-open"></i> Mark as Emptied
+                    </button>
+                    <button type="button" id="bulk-full-btn" class="btn btn-primary bulk-action-btn" style="display: none;">
+                        <i class="fas fa-box"></i> Mark as Full
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th class="select-column" style="display: none;"><input type="checkbox" id="select-all-checkbox"></th>
+                        <th>Container Number</th>
+                        <th>Type</th>
+                        <th>Loading Port</th>
+                        <th>Vessel</th>
+                        <th>Final Dest</th>
+                        <th>OPR</th>
+                        <th>Current Status</th>
+                        <th>Arrival Date</th>
+                        <th>Stripping Date</th>
+                        <th>Days</th>
+                        <th>BL NUMBER</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="container-list">
+                    {% for container in containers %}
+                    {% set latest_status = container.get_current_status() %}
+                    {% set current_location = container.get_current_location() %}
+                    {% set discharge_date = None %}
+                    {% set today = now.date() %}
+                    
+                    {% for movement in container.movements|sort(attribute='operation_date', reverse=true) %}
+                        {% if movement.operation_type == 'discharge' and not discharge_date %}
+                            {% set discharge_date = movement.operation_date.date() %}
+                            {# Use proper Jinja2 comment instead of break #}
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <tr data-status="{{ latest_status.status if latest_status else 'not-set' }}" data-id="{{ container.id }}">
+                        <td class="select-column" style="display: none;">
+                            <input type="checkbox" class="container-select" data-id="{{ container.id }}" data-number="{{ container.container_number }}">
+                        </td>
+                        <td>{{ container.container_number }}</td>
+                        <td>{{ container.container_type }}</td>
+                        <td>{{ container.loading_port if container.loading_port else '-' }}</td>
+                        <td>
+                            {% if container.get_current_vessel() %}
+                                <a href="{{ url_for('vessel_detail', id=container.get_current_vessel().id) }}">
+                                    {{ container.get_current_vessel().name }}
+                                </a>
+                            {% elif container.get_current_status() and container.get_current_status().status == 'discharged' %}
+                                {% set last_vessel = container.get_last_vessel() %}
+                                {% if last_vessel %}
+                                    <span title="Previously on this vessel">
+                                        <i class="fas fa-ship text-muted"></i>
+                                        <a href="{{ url_for('vessel_detail', id=last_vessel.id) }}" class="text-muted">
+                                            {{ last_vessel.name }}
+                                        </a>
+                                    </span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ container.final_destination if container.final_destination else '-' }}</td>
+                        <td>{{ container.opr if container.opr else '-' }}</td>
+                        <td>
+                            {% if latest_status %}
+                                {% if latest_status.status == 'loaded' %}
+                                <span class="badge bg-success">Loaded</span>
+                                {% elif latest_status.status == 'discharged' %}
+                                <span class="badge bg-warning text-dark">Discharged</span>
+                                {% elif latest_status.status == 'emptied' %}
+                                <span class="badge bg-info">Emptied</span>
+                                {% elif latest_status.status == 'full' %}
+                                <span class="badge bg-primary">Full</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ latest_status.status }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary">Not Set</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ container.arrival_date.strftime('%Y-%m-%d') if container.arrival_date else 'N/A' }}
+                        </td>
+                        <td>
+                            {{ container.stripping_date.strftime('%Y-%m-%d') if container.stripping_date else 'N/A' }}
+                        </td>
+                        <td>
+                            {% if container.stripping_date %}
+                                {{ (today - container.stripping_date.date()).days }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>{{ container.bl_number if container.bl_number else 'N/A' }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('container_detail', id=container.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('update_status', id=container.id) }}" class="btn btn-sm btn-success">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ container.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Delete Modal for each container -->
+                            <div class="modal fade" id="deleteModal{{ container.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-danger text-white">
+                                            <h5 class="modal-title">Confirm Delete</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p>Are you sure you want to delete container <strong>{{ container.container_number }}</strong>?</p>
+                                            <p class="text-danger">This action cannot be undone.</p>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <form action="{{ url_for('delete_container', id=container.id) }}" method="POST">
+                                                <button type="submit" class="btn btn-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Bulk Container Loading -->
+<div class="modal fade" id="bulkLoadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Bulk Load Containers</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulk-load-form">
+                    <div class="mb-3">
+                        <label for="bulk-vessel-select" class="form-label">Select Vessel</label>
+                        <select class="form-select" id="bulk-vessel-select" required>
+                            <option value="">-- Select a vessel --</option>
+                            <!-- Vessels will be populated via AJAX to exclude departed vessels -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-operation-date" class="form-label">Operation Date</label>
+                        <input type="date" class="form-control" id="bulk-operation-date" required 
+                               value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="bulk-location" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="bulk-notes" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6>Selected Containers (<span id="modal-selected-count">0</span>):</h6>
+                        <ul id="selected-containers-list" class="mb-0"></ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirm-bulk-load">Confirm Loading</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Bulk Container Discharge -->
+<div class="modal fade" id="bulkDischargeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Bulk Discharge Containers</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulk-discharge-form">
+                    <input type="hidden" id="bulk-discharge-vessel-id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Vessel Information</label>
+                        <div class="alert alert-info" id="bulk-discharge-vessel-info">
+                            Loading vessel information...
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-discharge-date" class="form-label">Operation Date</label>
+                        <input type="date" class="form-control" id="bulk-discharge-date" required 
+                               value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-discharge-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="bulk-discharge-location" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-discharge-notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="bulk-discharge-notes" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6>Selected Containers (<span id="modal-discharge-count">0</span>):</h6>
+                        <ul id="selected-discharge-containers-list" class="mb-0"></ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirm-bulk-discharge">Confirm Discharge</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal for Bulk Status Change to Emptied -->
+<div class="modal fade" id="bulkEmptiedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">Mark Containers as Emptied</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulk-emptied-form">
+                    <div class="mb-3">
+                        <label for="bulk-emptied-date" class="form-label">Operation Date</label>
+                        <input type="date" class="form-control" id="bulk-emptied-date" required 
+                               value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-emptied-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="bulk-emptied-location" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-emptied-notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="bulk-emptied-notes" rows="3">Empty Container</textarea>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6>Selected Containers (<span id="modal-emptied-count">0</span>):</h6>
+                        <ul id="selected-emptied-containers-list" class="mb-0"></ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" id="confirm-bulk-emptied">Confirm Update</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal for Bulk Status Change to Full -->
+<div class="modal fade" id="bulkFullModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Mark Containers as Full</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulk-full-form">
+                    <div class="mb-3">
+                        <label for="bulk-full-date" class="form-label">Operation Date</label>
+                        <input type="date" class="form-control" id="bulk-full-date" required 
+                               value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-full-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="bulk-full-location" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bulk-full-notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="bulk-full-notes" rows="3">Full Container</textarea>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6>Selected Containers (<span id="modal-full-count">0</span>):</h6>
+                        <ul id="selected-full-containers-list" class="mb-0"></ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-bulk-full">Confirm Update</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Update dashboard counts
+        function updateDashboardCounts() {
+            $.get('/api/containers', function(data) {
+                let loaded = 0;
+                let discharged = 0;
+                let emptied = 0;
+                
+                data.forEach(container => {
+                    if (container.current_status === 'loaded') loaded++;
+                    if (container.current_status === 'discharged') discharged++;
+                    if (container.current_status === 'emptied') emptied++;
+                });
+                
+                $('#loaded-count').text(loaded);
+                $('#discharged-count').text(discharged);
+                $('#emptied-count').text(emptied);
+            });
+        }
+        
+        // Container search functionality
+        $('#container-search').on('keyup', function() {
+            filterContainers();
+        });
+        
+        // Status filter functionality
+        let currentStatusFilter = 'all';
+        
+        // Add click handlers to status filter buttons
+        $('#status-filter-buttons button').on('click', function() {
+            // Update active state
+            $('#status-filter-buttons button').removeClass('active');
+            $(this).addClass('active');
+            
+            // Get the status value
+            currentStatusFilter = $(this).data('status');
+            console.log('Status filter changed to:', currentStatusFilter);
+            
+            // Update the filter badge
+            if (currentStatusFilter === 'all') {
+                $('#status-filter-badge').hide();
+                $('#bulk-actions').hide();
+                $('.select-column').hide();
+            } else {
+                $('#current-filter').text($(this).text());
+                $('#status-filter-badge').show();
+                
+                // Show appropriate bulk actions
+                if (currentStatusFilter === 'discharged' || currentStatusFilter === 'emptied' || 
+                    currentStatusFilter === 'loaded' || currentStatusFilter === 'full') {
+                    $('#bulk-actions').show();
+                    $('.select-column').show();
+                    
+                    // Show appropriate bulk action buttons
+                    $('.bulk-action-btn').hide();
+                    if (currentStatusFilter === 'discharged') {
+                        $('#bulk-load-btn').show();
+                        $('#bulk-emptied-btn').show();
+                    } else if (currentStatusFilter === 'emptied') {
+                        $('#bulk-load-btn').show();
+                        $('#bulk-full-btn').show();
+                    } else if (currentStatusFilter === 'loaded') {
+                        $('#bulk-discharge-btn').show();
+                    } else if (currentStatusFilter === 'full') {
+                        $('#bulk-load-btn').show();
+                        $('#bulk-emptied-btn').show();
+                    }
+                } else {
+                    $('#bulk-actions').hide();
+                    $('.select-column').hide();
+                }
+            }
+            
+            // Clear checkboxes
+            $('.container-select').prop('checked', false);
+            updateSelectedCount();
+            
+            // Apply filter
+            filterContainers();
+        });
+        
+        $('#clear-filter').on('click', function() {
+            currentStatusFilter = 'all';
+            $('#status-filter-badge').hide();
+            
+            // Hide bulk actions and selection columns when clearing filter
+            $('#bulk-actions').hide();
+            $('.select-column').hide();
+            $('.bulk-action-btn').hide();
+            
+            // Deselect all when clearing filter
+            $('.container-select').prop('checked', false);
+            updateSelectedCount();
+            
+            filterContainers();
+        });
+        
+        // Bulk selection functionality
+        $('#select-all').click(function() {
+            $('.container-select:visible').prop('checked', true);
+            updateSelectedCount();
+        });
+        
+        $('#deselect-all').click(function() {
+            $('.container-select').prop('checked', false);
+            updateSelectedCount();
+        });
+        
+        $('#select-all-checkbox').change(function() {
+            $('.container-select:visible').prop('checked', this.checked);
+            updateSelectedCount();
+        });
+        
+        // Update when individual checkboxes change
+        $(document).on('change', '.container-select', function() {
+            updateSelectedCount();
+        });
+        
+        function updateSelectedCount() {
+            const selectedCount = $('.container-select:checked').length;
+            $('#selected-count').text(selectedCount + ' containers selected');
+            $('#modal-selected-count').text(selectedCount);
+            
+            // Update selected containers list in modal
+            const $list = $('#selected-containers-list').empty();
+            $('.container-select:checked').each(function() {
+                const containerNumber = $(this).data('number');
+                $list.append(`<li>${containerNumber}</li>`);
+            });
+            
+            // Enable/disable bulk load button
+            if (selectedCount > 0) {
+                $('#bulk-load-btn').prop('disabled', false);
+            } else {
+                $('#bulk-load-btn').prop('disabled', true);
+            }
+        }
+        
+        function filterContainers() {
+            const searchValue = $('#container-search').val().toLowerCase();
+            
+            $('#container-list tr').each(function() {
+                const $row = $(this);
+                const rowText = $row.text().toLowerCase();
+                const hasSearchMatch = rowText.indexOf(searchValue) > -1;
+                
+                // Get the status from the data-status attribute
+                const status = $row.data('status');
+                
+                let statusMatch = true;
+                if (currentStatusFilter !== 'all') {
+                    if (currentStatusFilter === 'not-set') {
+                        statusMatch = status === 'not-set';
+                    } else {
+                        statusMatch = status === currentStatusFilter;
+                    }
+                }
+                
+                $row.toggle(hasSearchMatch && statusMatch);
+            });
+        }
+        
+        // Open bulk load modal
+        $('#bulk-load-btn').click(function() {
+            // Fetch only available vessels (not departed)
+            $.ajax({
+                url: '/api/vessels/available',
+                type: 'GET',
+                success: function(vessels) {
+                    // Clear and repopulate vessel select
+                    const $select = $('#bulk-vessel-select').empty();
+                    $select.append('<option value="">-- Select a vessel --</option>');
+                    
+                    if (vessels.length === 0) {
+                        $select.append('<option disabled>No vessels available for loading</option>');
+                    } else {
+                        vessels.forEach(vessel => {
+                            $select.append(`<option value="${vessel.id}">${vessel.name} (Voy N°: ${vessel.imo_number})</option>`);
+                        });
+                    }
+                    
+                    // Pre-fill location if all containers are in the same location
+                    let locations = new Set();
+                    $('.container-select:checked').each(function() {
+                        const $row = $(this).closest('tr');
+                        const location = $row.find('td:nth-child(6)').text().trim();
+                        locations.add(location);
+                    });
+                    
+                    if (locations.size === 1) {
+                        $('#bulk-location').val([...locations][0]);
+                    } else {
+                        $('#bulk-location').val('');
+                    }
+                    
+                    // Show the modal
+                    $('#bulkLoadModal').modal('show');
+                },
+                error: function(xhr) {
+                    alert('Error loading vessels: ' + xhr.responseText);
+                }
+            });
+        });
+        
+        // Handle bulk load submission
+        $('#confirm-bulk-load').click(function() {
+            // Validate form
+            const vesselId = $('#bulk-vessel-select').val();
+            const date = $('#bulk-operation-date').val();
+            const location = $('#bulk-location').val();
+            const notes = $('#bulk-notes').val();
+            
+            if (!vesselId || !date || !location) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Collect all selected container IDs
+            const containerIds = [];
+            $('.container-select:checked').each(function() {
+                containerIds.push($(this).data('id'));
+            });
+            
+            // Send to server
+            $.ajax({
+                url: '/containers/bulk-load',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    container_ids: containerIds,
+                    vessel_id: vesselId,
+                    operation_date: date,
+                    location: location,
+                    notes: notes
+                }),
+                success: function(response) {
+                    // Hide modal
+                    $('#bulkLoadModal').modal('hide');
+                    
+                    // Show success message
+                    alert('Successfully loaded ' + response.success_count + ' containers!');
+                    
+                    // Refresh the page
+                    window.location.reload();
+                },
+                error: function(xhr) {
+                    alert('Error: ' + xhr.responseJSON.error);
+                }
+            });
+        });
+        
+        // Bulk discharge functionality
+        $('#bulk-discharge-btn').click(function() {
+            // Get vessel info for the first container
+            const containerIds = [];
+            $('.container-select:checked').each(function() {
+                containerIds.push($(this).data('id'));
+            });
+            
+            if (containerIds.length === 0) {
+                alert('Please select at least one container');
+                return;
+            }
+            
+            // Fetch vessel info for the first container
+            $.ajax({
+                url: '/api/container/' + containerIds[0] + '/vessel',
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        // Store vessel ID in hidden field
+                        $('#bulk-discharge-vessel-id').val(response.vessel_id);
+                        
+                        // Display vessel info
+                        $('#bulk-discharge-vessel-info').html(`
+                            <strong>Vessel:</strong> ${response.vessel_name}<br>
+                            <strong>Current Location:</strong> ${response.vessel_location || 'Not specified'}
+                        `);
+                        
+                        // Pre-fill location with vessel's current location
+                        $('#bulk-discharge-location').val(response.vessel_location || '');
+                        
+                        // Update selected containers list in modal
+                        const $list = $('#selected-discharge-containers-list').empty();
+                        $('.container-select:checked').each(function() {
+                            $list.append(`<li>${$(this).data('number')}</li>`);
+                        });
+                        $('#modal-discharge-count').text($('.container-select:checked').length);
+                        
+                        // Show the modal
+                        $('#bulkDischargeModal').modal('show');
+                    } else {
+                        alert('Error: Selected containers are not on a vessel');
+                    }
+                },
+                error: function(xhr) {
+                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not retrieve vessel information'));
+                }
+            });
+        });
+        
+        // Handle bulk discharge submission
+        $('#confirm-bulk-discharge').click(function() {
+            // Validate form
+            const vesselId = $('#bulk-discharge-vessel-id').val();
+            const date = $('#bulk-discharge-date').val();
+            const location = $('#bulk-discharge-location').val();
+            const notes = $('#bulk-discharge-notes').val();
+            
+            if (!vesselId || !date || !location) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Collect all selected container IDs
+            const containerIds = [];
+            $('.container-select:checked').each(function() {
+                containerIds.push($(this).data('id'));
+            });
+            
+            // Send to server
+            $.ajax({
+                url: '/containers/bulk-discharge',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    container_ids: containerIds,
+                    vessel_id: vesselId,
+                    operation_date: date,
+                    location: location,
+                    notes: notes
+                }),
+                success: function(response) {
+                    // Hide modal
+                    $('#bulkDischargeModal').modal('hide');
+                    
+                    // Show success message
+                    alert('Successfully discharged ' + response.success_count + ' containers!');
+                    
+                    // Refresh the page
+                    window.location.reload();
+                },
+                error: function(xhr) {
+                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not process bulk discharge'));
+                }
+            });
+        });
+        
+        // Open bulk emptied modal
+        $('#bulk-emptied-btn').click(function() {
+            // Pre-fill location if all containers are in the same location
+            let locations = new Set();
+            $('.container-select:checked').each(function() {
+                const $row = $(this).closest('tr');
+                const location = $row.find('td:nth-child(6)').text().trim();
+                locations.add(location);
+            });
+            
+            if (locations.size === 1) {
+                $('#bulk-emptied-location').val([...locations][0]);
+            } else {
+                $('#bulk-emptied-location').val('');
+            }
+            
+            // Update selected containers list in modal
+            const $list = $('#selected-emptied-containers-list').empty();
+            $('.container-select:checked').each(function() {
+                const containerNumber = $(this).data('number');
+                $list.append(`<li>${containerNumber}</li>`);
+            });
+            $('#modal-emptied-count').text($('.container-select:checked').length);
+            
+            // Show the modal
+            $('#bulkEmptiedModal').modal('show');
+        });
+        
+        // Handle bulk emptied submission
+        $('#confirm-bulk-emptied').click(function() {
+            // Validate form
+            const date = $('#bulk-emptied-date').val();
+            const location = $('#bulk-emptied-location').val();
+            const notes = $('#bulk-emptied-notes').val();
+            
+            if (!date || !location) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Collect all selected container IDs
+            const containerIds = [];
+            $('.container-select:checked').each(function() {
+                containerIds.push($(this).data('id'));
+            });
+            
+            // Send to server
+            $.ajax({
+                url: '/containers/bulk-status-update',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    container_ids: containerIds,
+                    status: 'emptied',
+                    date: date,
+                    location: location,
+                    notes: notes
+                }),
+                success: function(response) {
+                    // Hide modal
+                    $('#bulkEmptiedModal').modal('hide');
+                    
+                    // Show success message
+                    alert('Successfully updated ' + response.success_count + ' containers!');
+                    
+                    // Refresh the page
+                    window.location.reload();
+                },
+                error: function(xhr) {
+                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not process status update'));
+                }
+            });
+        });
+        
+        // Open bulk full modal
+        $('#bulk-full-btn').click(function() {
+            // Pre-fill location if all containers are in the same location
+            let locations = new Set();
+            $('.container-select:checked').each(function() {
+                const $row = $(this).closest('tr');
+                const location = $row.find('td:nth-child(6)').text().trim();
+                locations.add(location);
+            });
+            
+            if (locations.size === 1) {
+                $('#bulk-full-location').val([...locations][0]);
+            } else {
+                $('#bulk-full-location').val('');
+            }
+            
+            // Update selected containers list in modal
+            const $list = $('#selected-full-containers-list').empty();
+            $('.container-select:checked').each(function() {
+                const containerNumber = $(this).data('number');
+                $list.append(`<li>${containerNumber}</li>`);
+            });
+            $('#modal-full-count').text($('.container-select:checked').length);
+            
+            // Show the modal
+            $('#bulkFullModal').modal('show');
+        });
+        
+        // Handle bulk full submission
+        $('#confirm-bulk-full').click(function() {
+            // Validate form
+            const date = $('#bulk-full-date').val();
+            const location = $('#bulk-full-location').val();
+            const notes = $('#bulk-full-notes').val();
+            
+            if (!date || !location) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Collect all selected container IDs
+            const containerIds = [];
+            $('.container-select:checked').each(function() {
+                containerIds.push($(this).data('id'));
+            });
+            
+            // Send to server
+            $.ajax({
+                url: '/containers/bulk-status-update',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    container_ids: containerIds,
+                    status: 'full',
+                    date: date,
+                    location: location,
+                    notes: notes
+                }),
+                success: function(response) {
+                    // Hide modal
+                    $('#bulkFullModal').modal('hide');
+                    
+                    // Show success message
+                    alert('Successfully updated ' + response.success_count + ' containers!');
+                    
+                    // Refresh the page
+                    window.location.reload();
+                },
+                error: function(xhr) {
+                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not process status update'));
+                }
+            });
+        });
+        
+        // Initial update
+        updateDashboardCounts();
+    });
+</script>
+{% endblock %}

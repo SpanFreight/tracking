@@ -1,0 +1,181 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Vessel Details</h1>
+    <div>
+        <a href="{{ url_for('update_vessel', id=vessel.id) }}" class="btn btn-success">
+            <i class="fas fa-edit"></i> Update Vessel
+        </a>
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteVesselModal">
+            <i class="fas fa-trash"></i> Delete Vessel
+        </button>
+        <a href="{{ url_for('vessels') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Vessels
+        </a>
+    </div>
+</div>
+
+<!-- Delete Vessel Modal -->
+<div class="modal fade" id="deleteVesselModal" tabindex="-1" aria-labelledby="deleteVesselModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteVesselModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete vessel <strong>{{ vessel.name }}</strong> (Voyage N°: {{ vessel.imo_number }})?</p>
+                
+                {% if loaded_containers %}
+                    <div class="alert alert-warning">
+                        <strong>Warning:</strong> This vessel has {{ loaded_containers|length }} container(s) currently loaded.
+                        Deleting this vessel will affect these container records.
+                    </div>
+                {% endif %}
+                
+                <p class="text-danger">This action cannot be undone. All vessel movement history will also be deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('delete_vessel', id=vessel.id) }}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete Vessel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Vessel Information</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Vessel Name:</strong> {{ vessel.name }}</p>
+                <p><strong>Voyage N°:</strong> {{ vessel.imo_number }}</p>
+                <p><strong>Vessel Type:</strong> {{ vessel.vessel_type }}</p>
+                <p><strong>Capacity:</strong> {{ vessel.capacity_teu or 'N/A' }} TEU</p>
+            </div>
+            <div class="col-md-6">
+                <p>
+                    <strong>Status:</strong>
+                    {% if vessel.status == 'Arrived' %}
+                        <span class="badge bg-success">Arrived</span>
+                    {% elif vessel.status == 'Departed' %}
+                        <span class="badge bg-warning">Departed</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ vessel.status }}</span>
+                    {% endif %}
+                </p>
+                <p><strong>Current Location:</strong> {{ vessel.current_location or 'N/A' }}</p>
+                <p><strong>Destination:</strong> {{ vessel.current_destination or 'N/A' }}</p>
+                <p><strong>ETA:</strong> {{ vessel.eta.strftime('%Y-%m-%d') if vessel.eta else 'N/A' }}</p>
+                <p><strong>Added on:</strong> {{ vessel.created_at.strftime('%Y-%m-%d') }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0">Currently Loaded Containers ({{ loaded_containers|length }})</h5>
+    </div>
+    <div class="card-body">
+        {% if loaded_containers %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Container Number</th>
+                        <th>Type</th>
+                        <th>Loaded On</th>
+                        <th>Loaded At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for container in loaded_containers %}
+                    {% set loading_movements = container.movements|selectattr('vessel_id', 'eq', vessel.id)|selectattr('operation_type', 'eq', 'load')|list %}
+                    {% if loading_movements %}
+                    {% set loading_movement = loading_movements|sort(attribute='operation_date')|last %}
+                    <tr>
+                        <td>{{ container.container_number }}</td>
+                        <td>{{ container.container_type }}</td>
+                        <td>{{ loading_movement.operation_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ loading_movement.location }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('container_detail', id=container.id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                                <a href="{{ url_for('discharge_container', id=container.id) }}" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-arrow-down"></i> Discharge
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center">No containers currently loaded on this vessel.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0">Container Movement History <small class="ms-2">(most recent first)</small></h5>
+    </div>
+    <div class="card-body">
+        {% if movements %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Container</th>
+                        <th>Operation</th>
+                        <th>Location</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for movement in movements|sort(attribute='created_at', reverse=true) %}
+                    <tr>
+                        <td>{{ movement.operation_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ movement.created_at.strftime('%H:%M:%S') }}</td>
+                        <td>
+                            <a href="{{ url_for('container_detail', id=movement.container.id) }}">
+                                {{ movement.container.container_number }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if movement.operation_type == 'load' %}
+                            <span class="badge bg-success">Loaded</span>
+                            {% elif movement.operation_type == 'discharge' %}
+                            <span class="badge bg-warning text-dark">Discharged</span>
+                            {% elif movement.operation_type == 'location_update' %}
+                            <span class="badge bg-info">Location Update</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ movement.operation_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ movement.location }}</td>
+                        <td>{{ movement.notes or 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center">No container movement history for this vessel.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

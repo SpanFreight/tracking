@@ -1,0 +1,61 @@
+body {
+    background-color: #f5f5f5;
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    border-radius: 8px 8px 0 0;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.badge {
+    font-size: 85%;
+}
+
+footer {
+    margin-top: auto;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.container-status-timeline {
+    position: relative;
+    padding-left: 40px;
+}
+
+.container-status-timeline::before {
+    content: "";
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.status-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.status-item::before {
+    content: "";
+    position: absolute;
+    left: -40px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #007bff;
+}

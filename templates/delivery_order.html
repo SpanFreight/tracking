@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Delivery Order - {{ container.container_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            counter-reset: page;
+        }
+        
+        /* Improved page counter implementation */
+        @page {
+            margin: 20mm 15mm 20mm 15mm;
+            counter-increment: page;
+            
+            @bottom-center {
+                content: "" counter(page);
+            }
+        }
+        
+        /* Remove the old page footer styling since we're using @page */
+        .page-footer {
+            display: none;
+        }
+        
+        /* Make header repeat on every page */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            page-break-inside: avoid;
+        }
+        
+        /* Ensure content starts after header on new pages */
+        @media print {
+            .header {
+                position: running(header);
+                display: block;
+                width: 100%;
+            }
+            
+            @page {
+                @top-center {
+                    content: element(header);
+                }
+            }
+            
+            /* Create space for header on subsequent pages */
+            .page-break-after {
+                page-break-after: always;
+            }
+            
+            /* Force logo to show on all pages */
+            .header {
+                display: table-header-group;
+            }
+            
+            body {
+                margin-top: 100px; /* Space for the header */
+            }
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .receipt {
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+        
+        .logo-container {
+            flex: 1;
+            text-align: left;
+            padding-right: 20px;
+        }
+        
+        .logo-container img {
+            max-width: 100%; /* Changed from 300px to use full width */
+            max-height: 160px; /* Increased from 120px */
+        }
+        
+        .company-info {
+            display: none; /* Hide the company info section completely */
+        }
+        
+        .date-section {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .date-section .editable-field {
+            font-weight: normal;
+            min-width: 120px;
+        }
+        
+        .delivery-order-title {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 22px;
+            font-weight: bold;
+            white-space: nowrap; /* Prevent line breaks */
+        }
+        
+        .delivery-order-number {
+            font-family: "Courier New", monospace;
+            letter-spacing: 1px;
+            font-weight: normal; /* Make the number normal weight instead of bold */
+            font-size: 22px; /* Match the size of the title */
+            display: inline-block; /* Keep on same line */
+        }
+        
+        .validity-text {
+            text-align: center;
+            font-style: italic;
+            font-size: 22px; /* Increased from 18px to 22px */
+            color: #333;
+            font-weight: normal;
+            margin: 5px 0 20px 0;
+        }
+        
+        .right-side-container {
+            width: 45%; /* Increased from 40% */
+            float: right;
+            margin-left: 10px; /* Decreased from 20px */
+            margin-bottom: 20px;
+        }
+
+        .container-info {
+            margin-bottom: 30px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .info-item {
+            margin-bottom: 15px;
+        }
+        
+        .info-item label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 3px;
+            font-size: 14px;
+        }
+        
+        .info-item span {
+            font-size: 15px;
+        }
+        
+        .signatures {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .signature-box {
+            width: 45%;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            text-align: center;
+        }
+        
+        .barcode {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .printed-date {
+            font-size: 12px;
+            margin-top: 20px;
+            text-align: right;
+            font-style: italic;
+        }
+        
+        @media print {
+            body {
+                padding: 0;
+                margin: 0;
+            }
+            .receipt {
+                border: none;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+        
+        /* Additional styles for the new elements */
+        .packages-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        .packages-table th, .packages-table td {
+            border: 1px solid #ddd;
+            padding: 1px 8px; /* Reduced from 8px to 5px 8px */
+            text-align: left;
+            line-height: 1.3; /* Added to decrease row height */
+        }
+        
+        .packages-table th {
+            background-color: #f2f2f2;
+            text-align: center !important; /* Force center alignment for all headers */
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        /* Fixed column widths and alignment */
+        .packages-table th:nth-child(1),
+        .packages-table td:nth-child(1) {
+            width: 25%;
+        }
+        
+        .packages-table th:nth-child(2),
+        .packages-table td:nth-child(2) {
+            width: 15%;
+            text-align: center;
+        }
+        
+        /* Make the editable field in the packages column consistent with other columns */
+        .packages-table td:nth-child(2) .editable-field {
+            width: 80%;
+            text-align: center;
+            min-width: 50px;
+            display: inline-block;
+        }
+
+        .packages-table th:nth-child(3) {
+            width: 60%;
+            text-align: center; /* Center the Description header specifically */
+        }
+        
+        .packages-table td:nth-child(3) {
+            width: 60%;
+            text-align: left; /* Keep the data cells left-aligned */
+        }
+        
+        .editable-field {
+            border: 1px solid transparent;
+            padding: 4px;
+            display: inline-block;
+            min-width: 100px;
+        }
+        
+        .editable-field:hover {
+            border: 1px dashed #aaa;
+            background-color: #f9f9f9;
+        }
+        
+        .editable-field:focus {
+            border: 1px solid #4a90e2;
+            outline: none;
+            background-color: #fff;
+        }
+        
+        @media print {
+            .editable-field {
+                border: none;
+            }
+            
+            input, textarea, [contenteditable] {
+                border: none !important;
+            }
+        }
+
+        /* Autocomplete styles */
+        .autocomplete-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .autocomplete-results {
+            position: absolute;
+            z-index: 1000;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: white;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+            top: 100%; /* Position below the input */
+            left: 0;
+            margin-top: 1px;
+        }
+        
+        /* Ensure input text is visible */
+        .container-number-field {
+            z-index: 10;
+            position: relative;
+            background-color: white;
+        }
+        
+        /* Modify the container cell structure */
+        .autocomplete-container {
+            display: block !important;
+        }
+
+        /* Fix delete button position */
+        .delete-row-btn {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 20;
+        }
+
+        .autocomplete-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .autocomplete-item:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .autocomplete-item.selected {
+            background-color: #e8f0fe;
+        }
+        
+        .container-number-details {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* Delete row button styles */
+        .delete-row-btn {
+            background-color: #ff4d4f;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 5px;
+            vertical-align: middle;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .delete-row-btn:hover {
+            opacity: 1;
+        }
+        
+        tr:hover .delete-row-btn {
+            opacity: 0.9;
+        }
+        
+        @media print {
+            .delete-row-btn {
+                display: none;
+            }
+        }
+
+        /* Additional print styles */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            
+            .no-screen {
+                display: block !important;
+            }
+            
+            /* Ensure page breaks don't occur in the middle of elements */
+            tr, td, th {
+                page-break-inside: avoid;
+            }
+            
+            /* Handle tables spanning multiple pages better */
+            thead {
+                display: table-header-group;
+            }
+            
+            tfoot {
+                display: table-footer-group;
+            }
+        }
+        
+        /* Hide footer in screen view */
+        .no-screen {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Add this script at the top of your delivery_order.html file -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verify authorization when the page loads
+            function verifyAuthorization() {
+                fetch('/api/verify-print-authorization/{{ container.id }}')
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(data => {
+                                throw new Error(data.error || 'Authorization failed');
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (!data.authorized) {
+                            console.error('Not authorized to print this delivery order');
+                            window.location.href = "{{ url_for('container_detail', id=container.id, auth_error=1) }}";
+                        } else {
+                            console.log('Authorization verified, ready to print');
+                            // Only enable the print button after authorization is verified
+                            document.getElementById('print-button').disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error verifying authorization:', error);
+                        alert('Error: ' + error.message);
+                        window.location.href = "{{ url_for('container_detail', id=container.id, auth_error=1) }}";
+                    });
+            }
+            
+            // Verify authorization immediately
+            verifyAuthorization();
+            
+            // Add a timer to periodically check authorization
+            // This helps prevent users from keeping the page open for too long
+            const authCheckInterval = setInterval(verifyAuthorization, 60000); // Check every minute
+            
+            // Stop checking when the page is unloaded
+            window.addEventListener('beforeunload', function() {
+                clearInterval(authCheckInterval);
+            });
+            
+            // When the print button is clicked
+            document.getElementById('print-button').addEventListener('click', function(e) {
+                // Prevent default action
+                e.preventDefault();
+                
+                // Verify authorization one more time before printing
+                fetch('/api/verify-print-authorization/{{ container.id }}')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.authorized) {
+                            // Proceed with printing
+                            window.print();
+                            
+                            // After print dialog closes, confirm the print with the server
+                            setTimeout(function() {
+                                confirmPrint();
+                            }, 1000);
+                        } else {
+                            alert('Not authorized to print this delivery order.');
+                            window.location.href = "{{ url_for('container_detail', id=container.id, auth_error=1) }}";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking authorization:', error);
+                        alert('Error checking authorization. Please try again.');
+                    });
+            });
+            
+            // Function to confirm the print with the server
+            function confirmPrint() {
+                fetch('/api/confirm-delivery-print', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        container_id: {{ container.id }}
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the DO number in the UI
+                        document.getElementById('do-number').textContent = data.do_number;
+                        
+                        // Disable print button after successful print
+                        document.getElementById('print-button').disabled = true;
+                        
+                        // Show success message
+                        const successAlert = document.getElementById('print-success');
+                        if (successAlert) {
+                            successAlert.style.display = 'block';
+                        }
+                    } else {
+                        alert('Error recording print: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error confirming print:', error);
+                    alert('Error confirming print. Please contact an administrator.');
+                });
+            }
+        });
+    </script>
+
+    <!-- Add this warning if it's a reprint -->
+    {% if is_reprint %}
+    <div class="alert alert-warning mb-3">
+        <i class="fas fa-exclamation-triangle"></i> 
+        This is a reprint of a previously issued delivery order.
+    </div>
+    {% endif %}
+
+    <!-- Add a success message area (hidden by default) -->
+    <div id="print-success" class="alert alert-success" style="display: none;">
+        <i class="fas fa-check-circle"></i>
+        Delivery Order successfully printed and recorded.
+    </div>
+
+    <div class="receipt">
+        <!-- Force the header to be treated as a header group for printing -->
+        <thead>
+            <div class="header">
+                <div class="logo-container" style="flex: 2; text-align: center;"> <!-- Adjusted flex value and centered -->
+                    <img src="/static/img/ spanfreight_logo.png" alt="SPANFREIGHT Logo">
+                </div>
+                <!-- Company info section removed -->
+            </div>
+        </thead>
+        
+        <div class="right-side-container">
+            <div class="date-section">
+                DATE: <input type="date" class="date-picker" value="{{ now.strftime('%Y-%m-%d') }}" 
+                       style="border: none; background: transparent; font-weight: normal; min-width: 120px; font-size: 16px;">
+            </div>
+            
+            <div class="delivery-order-title">
+                DELIVERY ORDER <span class="delivery-order-number" id="delivery-order-number">0000001</span>
+            </div>
+            
+            <div class="validity-text">Validity 7 days</div>
+        </div>
+        
+        <div class="container-info" style="clear: both;">
+            <!-- Removed the h2 Container Information heading -->
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">BL Number:</span>
+                <span style="margin-left: 20px;">{{ container.bl_number or 'N/A' }}</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">Please deliver to:</span>
+                <span contenteditable="true" class="editable-field" style="margin-left: 20px;">Enter recipient name</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">The undermentioned goods ex MV:</span>
+                <span style="margin-left: 20px;">{{ vessel.name if vessel else 'N/A' }}</span>
+                <span style="font-weight: bold; margin-left: 60px;">Voy No:</span>
+                <span style="margin-left: 20px;">{{ vessel.imo_number if vessel else 'N/A' }}</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">From:</span>
+                <span style="margin-left: 20px;">{{ vessel.current_location if vessel else 'N/A' }}</span>
+                <span style="font-weight: bold; margin-left: 60px;">Due / Arrived:</span>
+                <span style="margin-left: 20px;">{{ container.arrival_date.strftime('%d %b %Y') if container.arrival_date else 'N/A' }}</span>
+            </div>
+        </div>
+        
+        <div>
+            <table class="packages-table" id="packages-table">
+                <thead>
+                    <tr>
+                        <th>MARKS AND NUMBERS</th>
+                        <th>PACKAGES</th>
+                        <th>DESCRIPTION</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ container.container_number }}</td>
+                        <td>
+                            <div contenteditable="true" class="editable-field">0</div>
+                        </td>
+                        <td>
+                            <div contenteditable="true" class="editable-field" style="width: 95%; min-width: 200px;">Enter package description</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <span class="non-editable-label">WT: </span>
+                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <span class="non-editable-label">M/M: </span>
+                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                        </td>
+                    </tr>
+                    <!-- Add merged row at the bottom -->
+                    <tr class="special-footer-row">
+                        <td colspan="3" style="text-align: left; font-weight: normal; background-color: transparent; padding-left: 10px; font-style: normal;">
+                            CARGO IN / EX CONTAINER NUMBERS
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <button type="button" id="add-row-btn" class="btn btn-sm btn-outline-secondary mt-2 no-print">
+                <i class="fas fa-plus"></i> Add Row
+            </button>
+        </div>
+        
+        <!-- Added margin-top to push content to the bottom of the page -->
+        <div style="margin-top: 70px;"></div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 20px;">
+            <div class="info-item" style="width: 48%;">
+                <div class="editable-field" style="width:80%; min-height: 60px; font-style: normal;">NOTE: This "Delivery Order" is subject to all conditions and exceptions of the relative Bills of Lading</div>
+            </div>
+            
+            <div class="signature-box" style="width: 48%; margin-top: 0;">
+                <p>_________________________</p>
+                <p id="agent-name">Agents</p>
+                <!-- Hidden field to store the current user info passed from Flask -->
+                <input type="hidden" id="current-user-info" value="{{ current_user.username if current_user and current_user.is_authenticated else '' }}">
+            </div>
+        </div>
+        
+        <!-- Remove the old page footer since we're using @page now -->
+    </div>
+
+    <div class="no-print" style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-top: 1px solid #dee2e6; border-radius: 0.25rem;">
+        <div class="btn-toolbar justify-content-center" role="toolbar" aria-label="Delivery order actions">
+            <!-- Enhanced Print Button -->
+            <button id="print-button" class="btn btn-lg btn-primary me-3 shadow-sm d-flex align-items-center" disabled style="min-width: 200px; transition: all 0.3s ease;">
+                <i class="fas fa-print me-2" style="font-size: 1.2rem;"></i>
+                <span>Print Delivery Order</span>
+            </button>
+            
+            <!-- Enhanced Close Button -->
+            <button id="closeBtn" onclick="window.close(); return false;" class="btn btn-lg btn-outline-secondary shadow-sm d-flex align-items-center" style="min-width: 120px; transition: all 0.3s ease;">
+                <i class="fas fa-times-circle me-2" style="font-size: 1.2rem;"></i>
+                <span>Close</span>
+            </button>
+        </div>
+        
+        <!-- Add the DO number display here with better styling -->
+        <div class="mt-4 p-3 border rounded bg-white">
+            <h6 class="text-muted mb-1">Delivery Order Number</h6>
+            <span id="do-number" class="fs-5 fw-bold text-primary">Will start at 0000001</span>
+        </div>
+        
+        <!-- Add print status badge -->
+        <div id="print-status" class="mt-3" style="display: none;">
+            <span class="badge bg-success p-2"><i class="fas fa-check-circle me-2"></i> Print completed successfully</span>
+        </div>
+    </div>
+
+    <style>
+        /* Add custom button hover effects */
+        #print-button:not(:disabled):hover, #closeBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        }
+        
+        #print-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        
+        /* Add subtle animation for when print button is enabled */
+        @keyframes enableButton {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .button-enabled {
+            animation: enableButton 0.5s ease-in-out;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Stronger authorization check
+            function checkPrintAuthorization() {
+                fetch('/api/container/{{ container.id }}/print-history')
+                    .then(response => response.json())
+                    .then(data => {
+                        const hasPrints = data.length > 0 && data.some(print => print.do_number);
+                        
+                        if (hasPrints) {
+                            // We found prints, but is this user authorized?
+                            const isAuthorized = {{ container.can_print_delivery_order(current_user.id)|lower }};
+                            
+                            if (!isAuthorized) {
+                                console.log('Not authorized to access this page. Redirecting...');
+                                window.location.href = "{{ url_for('container_detail', id=container.id, auth_error=1) }}";
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking print authorization:', error);
+                    });
+            }
+            
+            // Call this immediately
+            checkPrintAuthorization();
+            
+            // Check if we need to reset the counter due to database reset
+            fetch('/api/check-delivery-counter-reset')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.should_reset) {
+                        console.log('Delivery order counter has been reset in database');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking counter reset status:', error);
+                });
+            
+            // Get current counter from server to display as placeholder
+            fetch('/api/current-delivery-counter')
+                .then(response => response.json())
+                .then(data => {
+                    const deliveryOrderNumber = document.getElementById('delivery-order-number');
+                    if (deliveryOrderNumber && data.counter) {
+                        // Format with leading zeros
+                        deliveryOrderNumber.textContent = String(data.counter).padStart(7, '0');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching delivery counter:', error);
+                });
+            
+            // Function to print and increment the delivery order number
+            window.printDeliveryOrder = function() {
+                // Show loading or disable button
+                const printButton = document.getElementById('print-button');
+                if (printButton) {
+                    printButton.disabled = true;
+                    printButton.textContent = "Processing...";
+                }
+                
+                // Request a new DO number from the server
+                fetch('/api/confirm-delivery-print', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})  // Empty object as we're not sending any data
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Print recorded successfully');
+                        
+                        // Update the DO number on the page
+                        const deliveryOrderNumber = document.getElementById('delivery-order-number');
+                        if (deliveryOrderNumber && data.do_number) {
+                            deliveryOrderNumber.textContent = data.do_number;
+                        }
+                        
+                        // Now trigger the actual print
+                        setTimeout(() => window.print(), 100);
+                    } else {
+                        console.error('Error recording print:', data.error);
+                        alert('Error: ' + data.error);
+                        
+                        // Re-enable the print button
+                        if (printButton) {
+                            printButton.disabled = false;
+                            printButton.textContent = "Print Delivery Order";
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Network error:', error);
+                    alert('Error connecting to server. Please try again.');
+                    
+                    // Re-enable the print button
+                    if (printButton) {
+                        printButton.disabled = false;
+                        printButton.textContent = "Print Delivery Order";
+                    }
+                });
+            };
+            
+            // Get and increment the delivery order number from localStorage
+            function getNextDeliveryOrderNumber() {
+                // Get the current number from localStorage or initialize to 0
+                let currentNumber = parseInt(localStorage.getItem('lastDeliveryOrderNumber') || '0', 10);
+                
+                // Increment for the next order
+                currentNumber++;
+                
+                // Store the updated number back to localStorage
+                localStorage.setItem('lastDeliveryOrderNumber', currentNumber.toString());
+                
+                // Format with leading zeros to 7 digits
+                return currentNumber.toString().padStart(7, '0');
+            }
+            
+            // Function to print and increment the delivery order number
+            window.printDeliveryOrder = function() {
+                // Get and increment the delivery order number right before printing
+                const deliveryOrderNumber = document.getElementById('delivery-order-number');
+                let doNumber = '';
+                if (deliveryOrderNumber) {
+                    doNumber = getNextDeliveryOrderNumber();
+                    deliveryOrderNumber.textContent = doNumber;
+                }
+                
+                // Record the print in the database
+                fetch('/api/confirm-delivery-print', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        do_number: doNumber
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Print recorded successfully');
+                        // Now trigger the actual print
+                        window.print();
+                    } else {
+                        console.error('Error recording print:', data.error);
+                        alert('Error: ' + data.error);
+                        // Still allow printing if the server error is unrelated to authorization
+                        window.print();
+                    }
+                })
+                .catch(error => {
+                    console.error('Network error:', error);
+                    // Allow printing even if network request fails
+                    window.print();
+                });
+            };
+            
+            // Set a placeholder delivery order number initially
+            const deliveryOrderNumber = document.getElementById('delivery-order-number');
+            if (deliveryOrderNumber) {
+                // Show what the next number will be, but don't increment yet
+                let currentNumber = parseInt(localStorage.getItem('lastDeliveryOrderNumber') || '0', 10);
+                let nextNumber = (currentNumber + 1).toString().padStart(7, '0');
+                deliveryOrderNumber.textContent = nextNumber;
+            }
+            
+            // Add code to display the current user in the signature
+            const userInfoField = document.getElementById('current-user-info');
+            const agentNameElement = document.getElementById('agent-name');
+            
+            if (userInfoField && userInfoField.value && agentNameElement) {
+                // If we have a username, display it instead of "Agents"
+                agentNameElement.textContent = userInfoField.value;
+            }
+            
+            // Add a global flag to track alert status and validation history
+            let alertShowing = false;
+            const validatedContainers = new Set();
+            const invalidContainers = new Set();
+
+            // Convert date to display format while keeping the input functional
+            const datePicker = document.querySelector('.date-picker');
+            
+            // Format date for display (e.g., "15 Mar 2023")
+            function formatDateForDisplay(dateString) {
+                const date = new Date(dateString);
+                const options = { day: '2-digit', month: 'short', year: 'numeric' };
+                return date.toLocaleDateString('en-US', options);
+            }
+            
+            // Set initial formatted value
+            const initialValue = datePicker.value;
+            const formattedDate = formatDateForDisplay(initialValue);
+            
+            // Apply style improvements for the date picker
+            datePicker.style.cursor = 'pointer';
+            datePicker.title = 'Click to change date';
+            
+            // Update UI when date changes
+            datePicker.addEventListener('change', function() {
+                // The browser handles the date input UI
+                console.log('Date changed to: ' + this.value);
+            });
+            
+            // Fix for packages field becoming uneditable
+            const packagesField = document.querySelector('.packages-table tbody td:nth-child(2) .editable-field');
+            
+            // Remove the problematic event listener by cloning and replacing the element
+            const packagesParent = packagesField.parentNode;
+            const packagesClone = packagesField.cloneNode(true);
+            packagesParent.replaceChild(packagesClone, packagesField);
+            
+            // Add a new clean input handler that allows continued editing
+            packagesClone.addEventListener('input', function(e) {
+                // Store cursor position
+                const selection = window.getSelection();
+                const position = selection.focusOffset;
+                
+                // Filter to numbers only
+                const oldText = this.textContent;
+                const newText = oldText.replace(/[^0-9]/g, '') || '0';
+                
+                // Only update content if it changed
+                if (oldText !== newText) {
+                    this.textContent = newText;
+                    
+                    // Restore cursor position after text change
+                    try {
+                        const textNode = this.firstChild || this;
+                        const range = document.createRange();
+                        // Calculate new position
+                        const newPosition = Math.min(position, newText.length);
+                        range.setStart(textNode, newPosition);
+                        range.collapse(true);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    } catch(err) {
+                        console.log("Error setting cursor position");
+                    }
+                }
+            });
+            
+            // Add click handlers for all editable fields to clear their initial content
+            const editableFields = document.querySelectorAll('[contenteditable="true"]');
+            
+            editableFields.forEach(function(field) {
+                // Store the original value
+                field.setAttribute('data-original', field.textContent);
+                
+                // Clear field when focused
+                field.addEventListener('focus', function(e) {
+                    // For date field, keep as is
+                    if (this.textContent.includes('/')) return;
+                    
+                    // For numeric fields, select all text instead of clearing
+                    if (this.textContent.match(/^[0-9]+$/)) {
+                        const range = document.createRange();
+                        range.selectNodeContents(this);
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        return;
+                    }
+                    
+                    // For other fields (like "Enter recipient name"), clear the text
+                    if (this.textContent === "Enter recipient name" || 
+                        this.textContent === "Enter package description") {
+                        this.textContent = '';
+                    }
+                });
+                
+                // If field is empty when losing focus, restore default value
+                field.addEventListener('blur', function(e) {
+                    if (!this.textContent.trim()) {
+                        const originalText = this.getAttribute('data-original');
+                        this.textContent = originalText || '';
+                    }
+                });
+            });
+            
+            // Add functionality for adding new rows to the packages table
+            const addRowBtn = document.getElementById('add-row-btn');
+            if (addRowBtn) {
+                addRowBtn.addEventListener('click', function() {
+                    console.log("Add row button clicked"); // Debug log
+                    const table = document.getElementById('packages-table');
+                    const tbody = table.querySelector('tbody');
+                    const firstRow = tbody.querySelector('tr');
+                    
+                    // Clone the first row
+                    const newRow = firstRow.cloneNode(true);
+                    
+                    // Reset the values in the cloned row
+                    newRow.querySelectorAll('.editable-field').forEach(field => {
+                        if (field.closest('td').cellIndex === 1) { // Packages column
+                            field.textContent = ''; // Changed from '0' to empty string
+                            field.setAttribute('data-original', ''); // Also update the data-original attribute
+                        } else if (field.closest('td').cellIndex === 2) { // Description column
+                            field.textContent = '';
+                        }
+                    });
+                    
+                    // Make the container number editable with a placeholder text and autocomplete
+                    const containerCell = newRow.cells[0];
+                    containerCell.innerHTML = `
+                        <div class="autocomplete-container">
+                            <div contenteditable="true" class="editable-field container-number-field" data-original="Enter container N°" style="width: 90%;">Enter container N°</div>
+                            <button class="delete-row-btn no-print" title="Delete row">✕</button>
+                            <div class="autocomplete-results"></div>
+                        `;
+                    
+                    // Style the placeholder
+                    const containerField = containerCell.querySelector('.container-number-field');
+                    containerField.style.fontStyle = 'italic';
+                    containerField.style.color = '#888';
+                    
+                    // Add delete functionality to the new row
+                    const deleteBtn = containerCell.querySelector('.delete-row-btn');
+                    deleteBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        if (confirm('Are you sure you want to delete this row?')) {
+                            newRow.remove();
+                        }
+                    });
+                    
+                    // Set up autocomplete for the new container number field
+                    setupContainerAutocomplete(containerField);
+                    
+                    // Find the WT row (the row containing "WT: " label) and insert before it
+                    const wtRow = Array.from(tbody.querySelectorAll('tr')).find(row => {
+                        return row.textContent.includes('WT: ');
+                    });
+                    
+                    if (wtRow) {
+                        tbody.insertBefore(newRow, wtRow);
+                    } else {
+                        // Fallback insertion before the footer row
+                        const specialFooterRow = tbody.querySelector('.special-footer-row');
+                        tbody.insertBefore(newRow, specialFooterRow);
+                    }
+                    
+                    // Add the row validation setup
+                    validateRowFields(newRow);
+                });
+            }
+            
+            // Define setupEditableField function if it doesn't exist
+            function setupEditableField(field, isNumeric) {
+                if (!field) return;
+                
+                if (isNumeric) {
+                    field.addEventListener('input', function(e) {
+                        // Store cursor position
+                        const selection = window.getSelection();
+                        const position = selection.focusOffset;
+                        
+                        // Filter to numbers only
+                        const oldText = this.textContent;
+                        const newText = oldText.replace(/[^0-9]/g, '') || '0';
+                        
+                        // Only update content if it changed
+                        if (oldText !== newText) {
+                            this.textContent = newText;
+                            
+                            // Restore cursor position after text change
+                            try {
+                                const textNode = this.firstChild || this;
+                                const range = document.createRange();
+                                // Calculate new position
+                                const newPosition = Math.min(position, newText.length);
+                                range.setStart(textNode, newPosition);
+                                range.collapse(true);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                            } catch(err) {
+                                console.log("Error setting cursor position");
+                            }
+                        }
+                    });
+                }
+            }
+            
+            // Function to validate container numbers against the database
+            function validateContainer(containerNumber, field) {
+                // Skip validation if an alert is already showing or already processed this container
+                if (alertShowing) return;
+                
+                // If we've already validated or invalidated this container before, use the cached result
+                if (validatedContainers.has(containerNumber)) {
+                    field.style.backgroundColor = '#e8f5e9'; // Light green background
+                    field.setAttribute('data-valid', 'true');
+                    return;
+                }
+                
+                if (invalidContainers.has(containerNumber)) {
+                    field.style.backgroundColor = '#ffebee'; // Light red background
+                    field.setAttribute('data-valid', 'false');
+                    return;
+                }
+                
+                // Show loading indicator
+                field.style.backgroundColor = '#fff9c4'; // Light yellow background while checking
+                
+                fetch(`/api/container-exists/${containerNumber}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.exists) {
+                            // Container exists - mark as valid and cache the result
+                            field.style.backgroundColor = '#e8f5e9';
+                            field.setAttribute('data-valid', 'true');
+                            validatedContainers.add(containerNumber);
+                        } else {
+                            // Container doesn't exist - mark as invalid and cache the result
+                            field.style.backgroundColor = '#ffebee';
+                            field.setAttribute('data-valid', 'false');
+                            
+                            // Only show alert if not already showing and user isn't actively typing
+                            if (!alertShowing) {
+                                alertShowing = true;
+                                setTimeout(function() {
+                                    alert(`Container ${containerNumber} not found in database.`);
+                                    alertShowing = false;
+                                }, 100);
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error validating container:', error);
+                        field.style.backgroundColor = '#ffebee';
+                        field.setAttribute('data-valid', 'false');
+                    });
+            }
+            
+            // Function to set up all validation for a row's fields
+            function validateRowFields(row) {
+                // Set up the editable behavior for the new row's fields
+                const containerField = row.querySelector('td:nth-child(1) .container-number-field');
+                if (containerField) {
+                    containerField.addEventListener('focus', function() {
+                        // Restore original background when focusing
+                        this.style.backgroundColor = '';
+                    });
+                }
+                
+                setupEditableField(row.querySelector('td:nth-child(2) .editable-field'), true);
+                setupEditableField(row.querySelector('td:nth-child(3) .editable-field'), false);
+            }
+            
+            // Set up all existing editable fields
+            document.querySelectorAll('.packages-table .editable-field').forEach(field => {
+                const isNumeric = field.closest('td').cellIndex === 1; // Check if it's the packages column
+                setupEditableField(field, isNumeric);
+            });
+
+            // Function to set up autocomplete for container number fields
+            function setupContainerAutocomplete(field) {
+                const resultsContainer = field.parentNode.querySelector('.autocomplete-results');
+                let selectedIndex = -1;
+                let results = [];
+                
+                // Remove styling on focus
+                field.addEventListener('focus', function() {
+                    this.style.backgroundColor = '';
+                    this.style.fontStyle = 'normal';
+                    this.style.color = '#333';
+                    
+                    // Clear placeholder text on first focus
+                    if (this.textContent === 'Enter container N°') {
+                        this.textContent = '';
+                    }
+                });
+                
+                // Handle input for autocomplete
+                field.addEventListener('input', debounce(function(e) {
+                    const query = this.textContent.trim();
+                    
+                    // Don't search for queries that are too short
+                    if (!query || query.length < 2) {
+                        resultsContainer.style.display = 'none';
+                        return;
+                    }
+                    
+                    // Get the parent container ID for filtering
+                    const parentContainerId = {{ container.id }};
+                    
+                    // Get the current container's BL, vessel name and voyage number for filtering
+                    const currentBL = "{{ container.bl_number or '' }}";
+                    const currentVesselName = "{{ vessel.name if vessel else '' }}";
+                    const currentVoyageNumber = "{{ vessel.imo_number if vessel else '' }}";
+                    
+                    // Show loading indicator
+                    field.style.backgroundColor = '#fff9c4'; // Light yellow background while loading
+                    
+                    // Use the new endpoint specifically for delivery order filtering
+                    let url = `/api/search-containers-for-delivery/${encodeURIComponent(query)}?parent_id=${parentContainerId}`;
+                    
+                    // Add filters for matching BL, vessel, and voyage
+                    if (currentBL) url += `&bl_number=${encodeURIComponent(currentBL)}`;
+                    if (currentVesselName) url += `&vessel_name=${encodeURIComponent(currentVesselName)}`;
+                    if (currentVoyageNumber) url += `&voyage_number=${encodeURIComponent(currentVoyageNumber)}`;
+                    
+                    fetch(url)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Server returned an error response');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            // Reset background color
+                            field.style.backgroundColor = '';
+                            
+                            // Store the results for later use
+                            results = data;
+                            
+                            // If no results found, show a message but don't allow selection
+                            if (results.length === 0) {
+                                resultsContainer.innerHTML = '<div class="autocomplete-message">No compatible containers found</div>';
+                                resultsContainer.style.display = 'block';
+                                
+                                // Mark field as invalid for styling
+                                field.style.backgroundColor = '#ffebee'; // Light red background
+                                field.setAttribute('data-valid', 'false');
+                                
+                                // Hide the message after a delay
+                                setTimeout(() => {
+                                    resultsContainer.style.display = 'none';
+                                }, 2000);
+                                return;
+                            }
+                            
+                            // Build the dropdown content - matching containers only
+                            let html = '';
+                            results.forEach((container, index) => {
+                                html += `
+                                    <div class="autocomplete-item" data-index="${index}">
+                                        <strong>${container.container_number}</strong>
+                                        <div class="container-number-details">
+                                            ${container.container_type} | BL: ${container.bl_number}
+                                            ${currentBL ? '<span class="badge bg-success ms-1">Same BL</span>' : ''}
+                                            ${currentVesselName && currentVoyageNumber ? '<span class="badge bg-primary ms-1">Same Vessel</span>' : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            // Display results and set up selection
+                            resultsContainer.innerHTML = html;
+                            resultsContainer.style.display = 'block';
+                            selectedIndex = -1;
+                            
+                            // Add click handlers to the results
+                            const items = resultsContainer.querySelectorAll('.autocomplete-item');
+                            items.forEach(item => {
+                                item.addEventListener('click', function() {
+                                    const index = parseInt(this.getAttribute('data-index'));
+                                    selectResult(index);
+                                });
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error searching containers:', error);
+                            field.style.backgroundColor = '#ffebee'; // Red background for error
+                            resultsContainer.innerHTML = '<div class="autocomplete-message">Error searching containers</div>';
+                            resultsContainer.style.display = 'block';
+                            setTimeout(() => {
+                                resultsContainer.style.display = 'none';
+                            }, 2000);
+                        });
+                }, 300)); // 300ms debounce to avoid too many requests
+                
+                // Handle arrow keys for navigation and selection
+                field.addEventListener('keydown', function(e) {
+                    if (!resultsContainer.style.display || resultsContainer.style.display === 'none') return;
+                    
+                    const items = resultsContainer.querySelectorAll('.autocomplete-item');
+                    
+                    // Down arrow
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                        updateSelection(items);
+                    }
+                    
+                    // Up arrow
+                    else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        selectedIndex = Math.max(selectedIndex - 1, -1);
+                        updateSelection(items);
+                    }
+                    
+                    // Enter key
+                    else if (e.key === 'Enter' && selectedIndex >= 0) {
+                        e.preventDefault();
+                        selectResult(selectedIndex);
+                    }
+                    
+                    // Escape key
+                    else if (e.key === 'Escape') {
+                        resultsContainer.style.display = 'none';
+                        selectedIndex = -1;
+                    }
+                });
+                
+                // Update the selected item visually
+                function updateSelection(items) {
+                    items.forEach((item, i) => {
+                        if (i === selectedIndex) {
+                            item.classList.add('selected');
+                        } else {
+                            item.classList.remove('selected');
+                        }
+                    });
+                    
+                    // Scroll into view if needed
+                    if (selectedIndex >= 0) {
+                        items[selectedIndex].scrollIntoView({ block: 'nearest' });
+                    }
+                }
+                
+                // Select a result from the dropdown - simplified version since we're already filtering
+                function selectResult(index) {
+                    if (index >= 0 && index < results.length) {
+                        const container = results[index];
+                        
+                        // Container is already verified as compatible by the API
+                        field.textContent = container.container_number;
+                        
+                        // Mark as valid since we chose from the autocomplete
+                        field.style.backgroundColor = '#e8f5e9'; // Light green background
+                        field.setAttribute('data-valid', 'true');
+                        field.setAttribute('data-container-id', container.id);
+                        
+                        // Set the data attribute to store the selection
+                        field.setAttribute('data-selected', 'true');
+                        field.setAttribute('data-container-data', JSON.stringify(container));
+                        
+                        // Hide the results
+                        resultsContainer.style.display = 'none';
+                        
+                        // Trigger a blur event to finalize the selection
+                        field.blur();
+                    }
+                }
+                
+                // Handle blur to hide results after a short delay
+                field.addEventListener('blur', function(e) {
+                    // Create a local variable to track if validation should run
+                    const shouldValidate = !alertShowing && 
+                                          this.textContent.trim() && 
+                                          this.getAttribute('data-selected') !== 'true' &&
+                                          (!this.hasAttribute('data-valid') || this.getAttribute('data-valid') !== 'true');
+                    
+                    setTimeout(() => {
+                        resultsContainer.style.display = 'none';
+                        
+                        // Restore placeholder if empty
+                        if (!this.textContent.trim()) {
+                            this.textContent = 'Enter container N°';
+                            this.style.fontStyle = 'italic';
+                            this.style.color = '#888';
+                            return;
+                        }
+                        
+                        // Only validate if needed and alerts aren't already showing
+                        if (shouldValidate && !alertShowing) {
+                            const enteredValue = this.textContent.trim();
+                            validateContainer(enteredValue, this);
+                        }
+                    }, 150); // Small delay to allow clicks on results
+                });
+                
+                // Close the dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!field.contains(e.target) && !resultsContainer.contains(e.target)) {
+                        resultsContainer.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Helper function to debounce user input
+            function debounce(func, wait) {
+                let timeout;
+                return function(...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), wait);
+                };
+            }
+        });
+    </script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Clear any existing event listeners by cloning and replacing the print button
+    const originalPrintButton = document.getElementById('print-button');
+    if (originalPrintButton) {
+        const newPrintButton = originalPrintButton.cloneNode(true);
+        originalPrintButton.parentNode.replaceChild(newPrintButton, originalPrintButton);
+        
+        // Initialize delivery order number from server
+        fetch('/api/get-delivery-counter')
+            .then(response => response.json())
+            .then(data => {
+                const currentCounter = data.counter || 1;
+                const formattedNumber = String(currentCounter).padStart(7, '0');
+                
+                // Update both DO number displays
+                updateDeliveryOrderDisplay(formattedNumber);
+                console.log('DO number initialized:', formattedNumber);
+            })
+            .catch(error => {
+                console.error('Error fetching delivery counter:', error);
+            });
+
+        // Add a single event handler for print button
+        newPrintButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Disable button immediately to prevent multiple clicks
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Processing...';
+            
+            // Get the current delivery order number from the DOM
+            const doNumber = document.getElementById('delivery-order-number').textContent;
+            console.log('Using DO number for print:', doNumber);
+            
+            // First verify authorization
+            fetch('/api/verify-print-authorization/{{ container.id }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.authorized) {
+                        throw new Error('Not authorized to print this delivery order');
+                    }
+                    
+                    // Then increment the counter
+                    return fetch('/api/increment-delivery-counter', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        throw new Error('Failed to increment counter');
+                    }
+                    
+                    // Now record the print with the DO number
+                    return fetch('/api/confirm-delivery-print', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            container_id: {{ container.id }},
+                            do_number: doNumber // The critical field
+                        })
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Show success message
+                        document.getElementById('print-status').style.display = 'block';
+                        
+                        // Print the document after a short delay
+                        setTimeout(() => {
+                            window.print();
+                            
+                            // Keep button disabled after successful print
+                            this.disabled = true;
+                            this.innerHTML = '<i class="fas fa-check me-2"></i> Printed';
+                        }, 200);
+                    } else {
+                        throw new Error(data.error || 'Failed to record print');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error: ' + error.message);
+                    
+                    // Re-enable the button for retry
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-print me-2"></i> Print Delivery Order';
+                });
+        });
+    }
+    
+    // Verify authorization when page loads
+    verifyAuthorization();
+    
+    // Function to update the delivery order displays
+    function updateDeliveryOrderDisplay(number) {
+        const formattedNumber = String(number).padStart(7, '0');
+        
+        const deliveryOrderNumber = document.getElementById('delivery-order-number');
+        if (deliveryOrderNumber) {
+            deliveryOrderNumber.textContent = formattedNumber;
+        }
+        
+        const doNumberDisplay = document.getElementById('do-number');
+        if (doNumberDisplay) {
+            doNumberDisplay.textContent = formattedNumber;
+        }
+    }
+    
+    // Function to verify authorization
+    function verifyAuthorization() {
+        fetch('/api/verify-print-authorization/{{ container.id }}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.authorized) {
+                    // Enable print button
+                    const printButton = document.getElementById('print-button');
+                    if (printButton) {
+                        printButton.disabled = false;
+                    }
+                } else {
+                    console.error('Not authorized to print this delivery order');
+                    window.location.href = "{{ url_for('container_detail', id=container.id, auth_error=1) }}";
+                }
+            })
+            .catch(error => {
+                console.error('Error verifying authorization:', error);
+                alert('Error: ' + error.message);
+            });
+    }
+    
+    // Add event listener for the close button
+    const closeBtn = document.getElementById('closeBtn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (window.opener && !window.opener.closed) {
+                window.close();
+            } else {
+                window.location.href = "{{ url_for('container_detail', id=container.id) }}";
+            }
+        });
+    }
+    
+    // Set up container number field behaviors
+    setupContainerFieldBehaviors();
+    
+    // Keep a clean version of the printDeliveryOrder function that redirects to our button click
+    window.printDeliveryOrder = function() {
+        console.log('Redirecting print request to button click');
+        const printButton = document.getElementById('print-button');
+        if (printButton && !printButton.disabled) {
+            printButton.click();
+        }
+    };
+});
+
+// Move this function outside the DOMContentLoaded event
+function setupContainerFieldBehaviors() {
+    // Add handlers for editable fields, autocomplete, etc.
+    // ...existing code for container fields, autocomplete, etc...
+    
+    // Most of these functions can stay the same, they don't interact with the print functionality
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-user-circle me-2"></i> My Profile</h4>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3 fw-bold">Username:</div>
+                    <div class="col-md-9">{{ current_user.username }}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3 fw-bold">Email:</div>
+                    <div class="col-md-9">{{ current_user.email }}</div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3 fw-bold">Account Type:</div>
+                    <div class="col-md-9">
+                        {% if current_user.is_admin %}
+                            <span class="badge bg-danger">Administrator</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Regular User</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-3 fw-bold">Member Since:</div>
+                    <div class="col-md-9">{{ current_user.created_at.strftime('%Y-%m-%d') }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add admin panel section if user is admin -->
+{% if current_user.is_admin %}
+<div class="row mt-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0"><i class="fas fa-shield-alt me-2"></i> Admin Functions</h4>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    <a href="{{ url_for('admin_panel') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-tachometer-alt me-2"></i> Admin Dashboard
+                    </a>
+                    <a href="{{ url_for('admin_users') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-users me-2"></i> User Management
+                    </a>
+                    <a href="{{ url_for('admin_system') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-cogs me-2"></i> System Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Add specific IDs to admin links and use direct navigation instead of event handlers
+document.addEventListener('DOMContentLoaded', function() {
+    // Prevent default filter behavior for admin links by using direct links or window.location
+    const adminLinks = document.querySelectorAll('.list-group-item');
+    adminLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            // If the link has an href attribute and it's not "#", let it navigate naturally
+            if (this.getAttribute('href') && this.getAttribute('href') !== '#') {
+                return true; // Continue with default behavior
+            }
+            
+            // Otherwise prevent default and handle navigation manually
+            e.preventDefault();
+            
+            // Handle specific admin functions
+            if (this.id === 'admin-users-link') {
+                alert('User management functionality coming soon!');
+            } else if (this.id === 'admin-settings-link') {
+                alert('Settings functionality coming soon!');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

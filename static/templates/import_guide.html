@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Container Import Guide</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { padding: 20px; }
+        .header { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .code { font-family: monospace; background-color: #f1f1f1; padding: 2px 4px; border-radius: 3px; }
+        .section { margin-bottom: 30px; }
+        h1 { color: #0d6efd; }
+        h2 { color: #198754; margin-top: 30px; }
+        table { width: 100%; margin-bottom: 20px; }
+        th { background-color: #e9ecef; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Container Import Guide</h1>
+            <p class="lead">Reference for importing containers using Excel or CSV files</p>
+        </div>
+
+        <div class="section">
+            <h2>Required Columns</h2>
+            <p>These columns must be present in your import file:</p>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Column Name</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>container_number</code></td>
+                        <td>The container identification number (e.g., ABCD1234567)</td>
+                    </tr>
+                    <tr>
+                        <td><code>container_type</code></td>
+                        <td>Type of container (20GP, 40HC, etc.)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Optional Columns</h2>
+            <p>These columns may be included but are not required:</p>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Column Name</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>loading_port</code></td>
+                        <td>Port of loading</td>
+                    </tr>
+                    <tr>
+                        <td><code>final_destination</code></td>
+                        <td>Final destination of container</td>
+                    </tr>
+                    <tr>
+                        <td><code>opr</code></td>
+                        <td>OPR information</td>
+                    </tr>
+                    <tr>
+                        <td><code>arrival_date</code></td>
+                        <td>Expected arrival date (YYYY-MM-DD)</td>
+                    </tr>
+                    <tr>
+                        <td><code>bl_number</code></td>
+                        <td>Bill of Lading number</td>
+                    </tr>
+                    <tr>
+                        <td><code>stripping_date</code></td>
+                        <td>Date when container is expected to be unloaded/stripped. This date is automatically set when a container is discharged from a vessel.</td>
+                    </tr>
+                    <tr>
+                        <td><code>status</code></td>
+                        <td>Current status (loaded, discharged, emptied, full)</td>
+                    </tr>
+                    <tr>
+                        <td><code>date</code></td>
+                        <td>Date of status (YYYY-MM-DD)</td>
+                    </tr>
+                    <tr>
+                        <td><code>location</code></td>
+                        <td>Current container location</td>
+                    </tr>
+                    <tr>
+                        <td><code>notes</code></td>
+                        <td>Additional notes</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Valid Container Types</h2>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>20GP</td><td>20 foot General Purpose</td></tr>
+                    <tr><td>40GP</td><td>40 foot General Purpose</td></tr>
+                    <tr><td>40HC</td><td>40 foot High Cube</td></tr>
+                    <tr><td>20RF</td><td>20 foot Refrigerated</td></tr>
+                    <tr><td>40RF</td><td>40 foot Refrigerated</td></tr>
+                    <tr><td>20OT</td><td>20 foot Open Top</td></tr>
+                    <tr><td>40OT</td><td>40 foot Open Top</td></tr>
+                    <tr><td>20FR</td><td>20 foot Flat Rack</td></tr>
+                    <tr><td>40FR</td><td>40 foot Flat Rack</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>Valid Status Values</h2>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>loaded</td><td>Container has been loaded onto a vessel</td></tr>
+                    <tr><td>discharged</td><td>Container has been discharged from vessel</td></tr>
+                    <tr><td>emptied</td><td>Container has been emptied after discharge</td></tr>
+                    <tr><td>full</td><td>Container is full</td></tr>
+                    <tr><td>in_transit</td><td>Container is in transit</td></tr>
+                    <tr><td>customs_hold</td><td>Container is held by customs</td></tr>
+                    <tr><td>ready_for_pickup</td><td>Container is ready for pickup</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="section">
+            <h2>Bulk Import Containers</h2>
+            <p>When performing bulk imports, please note the following required column information:</p>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h3 class="h5 mb-0">Required Column Information</h3>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <strong>container_number</strong> and <strong>container_type</strong> are mandatory fields
+                        </li>
+                        <li class="list-group-item">
+                            <strong>stripping_date</strong> is the date when a container is unloaded/stripped of its contents. This is automatically set to match the discharge date when a container is discharged from a vessel, or can be manually specified.
+                        </li>
+                        <li class="list-group-item">
+                            Tracking stripping dates helps with planning warehouse operations and monitoring container detention periods.
+                        </li>
+                        <li class="list-group-item">
+                            All dates should be in YYYY-MM-DD format for best results.
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <p class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i> The system will validate your data during import and display error messages if any required fields are missing or incorrectly formatted.
+            </p>
+        </div>
+        
+        <div class="mt-5 text-center">
+            <a href="/download_template" class="btn btn-primary">
+                <i class="fas fa-download me-2"></i> Download Template File
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

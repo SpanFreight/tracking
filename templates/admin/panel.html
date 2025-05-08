@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4"><i class="fas fa-shield-alt me-2"></i> Admin Panel</h1>
+
+<div class="row mb-4">
+    <div class="col-12 mb-3">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-tachometer-alt me-2"></i> Dashboard</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card bg-primary text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="fas fa-users me-2"></i> Users</h5>
+                                <h2 class="display-4">{{ user_count }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="fas fa-shipping-fast me-2"></i> Containers</h5>
+                                <h2 class="display-4">{{ container_count }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-info text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="fas fa-ship me-2"></i> Vessels</h5>
+                                <h2 class="display-4">{{ vessel_count }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-print me-2"></i> Delivery Order Printing
+                                </h5>
+                                <p class="card-text">Manage delivery order print authorizations for users.</p>
+                                <a href="{{ url_for('admin_print_authorizations') }}" class="btn btn-primary">
+                                    <i class="fas fa-cog me-2"></i> Manage Authorizations
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-print text-primary me-2"></i> Delivery Order Management
+                                </h5>
+                                <p class="card-text">Manage delivery order print authorizations and track printing history.</p>
+                                <a href="{{ url_for('admin_print_authorizations') }}" class="btn btn-primary mt-2">
+                                    <i class="fas fa-user-check me-2"></i> Manage Print Authorizations
+                                </a>
+                            </div>
+                            <div class="card-footer bg-white border-0">
+                                <small class="text-muted">Grant permissions to users for printing delivery orders</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-cog me-2"></i> Admin Functions</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    <a href="{{ url_for('admin_users') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-users me-2"></i> User Management
+                    </a>
+                    <a href="{{ url_for('admin_system') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-server me-2"></i> System Settings
+                    </a>
+                    <a href="{{ url_for('index') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-shipping-fast me-2"></i> Container Management
+                    </a>
+                    <a href="{{ url_for('vessels') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-ship me-2"></i> Vessel Management
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i> Recent Activity</h5>
+            </div>
+            <div class="card-body">
+                <h6>Recent Containers</h6>
+                <ul class="list-group mb-3">
+                    {% for container in recent_containers %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ container.container_number }}
+                            <span class="badge bg-primary rounded-pill">{{ container.created_at.strftime('%Y-%m-%d') }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+                
+                <h6>Recent Vessels</h6>
+                <ul class="list-group">
+                    {% for vessel in recent_vessels %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ vessel.name }}
+                            <span class="badge bg-info rounded-pill">{{ vessel.created_at.strftime('%Y-%m-%d') }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

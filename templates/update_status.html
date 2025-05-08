@@ -1,0 +1,287 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Update Container Status</h1>
+    <a href="{{ url_for('container_detail', id=container.id) }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Container Details
+    </a>
+</div>
+
+<div class="row">
+    <!-- Container Information Panel -->
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i> Container Information</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Container Number:</strong> {{ container.container_number }}</p>
+                <p><strong>Container Type:</strong> {{ container.container_type }}</p>
+                <p><strong>Loading Port:</strong> {{ container.loading_port if container.loading_port else 'N/A' }}</p>
+                <p><strong>Final Destination:</strong> {{ container.final_destination if container.final_destination else 'N/A' }}</p>
+                <p><strong>OPR:</strong> {{ container.opr if container.opr else 'N/A' }}</p>
+                <p><strong>Arrival Date:</strong> {{ container.arrival_date.strftime('%Y-%m-%d') if container.arrival_date else 'N/A' }}</p>
+                <p><strong>BL Number:</strong> {{ container.bl_number if container.bl_number else 'N/A' }}</p>
+            </div>
+        </div>
+
+        <!-- Current Status Panel -->
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i> Current Status</h5>
+            </div>
+            <div class="card-body">
+                {% if current_status %}
+                    <p>
+                        <strong>Status:</strong> 
+                        <span class="badge {{ 'bg-success' if current_status.status == 'loaded' else 'bg-warning' if current_status.status == 'discharged' else 'bg-secondary' }}">
+                            {{ current_status.status }}
+                        </span>
+                    </p>
+                    <p><strong>Date:</strong> {{ current_status.date.strftime('%Y-%m-%d') }}</p>
+                    <p><strong>Location:</strong> {{ current_status.location }}</p>
+                    {% if current_status.notes %}
+                        <p><strong>Notes:</strong> {{ current_status.notes }}</p>
+                    {% endif %}
+                {% else %}
+                    <p>No status information available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Status Form -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-edit me-2"></i> Update Container Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('update_status', id=container.id) }}">
+                    <ul class="nav nav-tabs mb-3" id="updateTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status-pane" type="button" role="tab" aria-controls="status-pane" aria-selected="true">Status Update</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="details-tab" data-bs-toggle="tab" data-bs-target="#details-pane" type="button" role="tab" aria-controls="details-pane" aria-selected="false">Container Details</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="updateTabsContent">
+                        <!-- Status Update Tab -->
+                        <div class="tab-pane fade show active" id="status-pane" role="tabpanel" aria-labelledby="status-tab">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="status" class="form-label">Status</label>
+                                    <select class="form-select" id="status" name="status" required>
+                                        <option value="">-- Select Status --</option>
+                                        <option value="loaded" {% if current_status and current_status.status == 'loaded' %}selected{% endif %}>Loaded</option>
+                                        <option value="discharged" {% if current_status and current_status.status == 'discharged' %}selected{% endif %}>Discharged</option>
+                                        <option value="emptied" {% if current_status and current_status.status == 'emptied' %}selected{% endif %}>Emptied</option>
+                                        <option value="full" {% if current_status and current_status.status == 'full' %}selected{% endif %}>Full</option>
+                                        <option value="in_transit" {% if current_status and current_status.status == 'in_transit' %}selected{% endif %}>In Transit</option>
+                                        <option value="customs_hold" {% if current_status and current_status.status == 'customs_hold' %}selected{% endif %}>Customs Hold</option>
+                                        <option value="ready_for_pickup" {% if current_status and current_status.status == 'ready_for_pickup' %}selected{% endif %}>Ready for Pickup</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="date" class="form-label">Date</label>
+                                    <input type="date" class="form-control" id="date" name="date" value="{{ current_status.date.strftime('%Y-%m-%d') if current_status else now.strftime('%Y-%m-%d') }}" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="location" class="form-label">Location</label>
+                                <input type="text" class="form-control" id="location" name="location" value="{{ current_status.location if current_status else '' }}" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="notes" class="form-label">Notes</label>
+                                <textarea class="form-control" id="notes" name="notes" rows="3">{{ current_status.notes if current_status and current_status.notes else '' }}</textarea>
+                                <small class="text-muted">Notes will be auto-generated for certain status types if left blank.</small>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i> 
+                                {% if container.get_current_location() and container.get_current_location().type == 'vessel' %}
+                                    <strong>Warning:</strong> This container is currently loaded on a vessel. 
+                                    Changing status to anything other than 'loaded' will automatically discharge it from the vessel.
+                                {% else %}
+                                    <strong>Note:</strong> This will add a new status record to the container's history.
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Container Details Tab -->
+                        <div class="tab-pane fade" id="details-pane" role="tabpanel" aria-labelledby="details-tab">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="container_number" class="form-label">Container Number</label>
+                                    <input type="text" class="form-control" id="container_number" name="container_number" value="{{ container.container_number }}" required>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="container_type" class="form-label">Container Type</label>
+                                    <select class="form-select" id="container_type" name="container_type" required>
+                                        <option value="">-- Select Type --</option>
+                                        <option value="20GP" {% if container.container_type == '20GP' %}selected{% endif %}>20GP - 20ft General Purpose</option>
+                                        <option value="40GP" {% if container.container_type == '40GP' %}selected{% endif %}>40GP - 40ft General Purpose</option>
+                                        <option value="40HC" {% if container.container_type == '40HC' %}selected{% endif %}>40HC - 40ft High Cube</option>
+                                        <option value="20RF" {% if container.container_type == '20RF' %}selected{% endif %}>20RF - 20ft Refrigerated</option>
+                                        <option value="40RF" {% if container.container_type == '40RF' %}selected{% endif %}>40RF - 40ft Refrigerated</option>
+                                        <option value="20OT" {% if container.container_type == '20OT' %}selected{% endif %}>20OT - 20ft Open Top</option>
+                                        <option value="40OT" {% if container.container_type == '40OT' %}selected{% endif %}>40OT - 40ft Open Top</option>
+                                        <option value="20FR" {% if container.container_type == '20FR' %}selected{% endif %}>20FR - 20ft Flat Rack</option>
+                                        <option value="40FR" {% if container.container_type == '40FR' %}selected{% endif %}>40FR - 40ft Flat Rack</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="loading_port" class="form-label">Loading Port</label>
+                                <input type="text" class="form-control" id="loading_port" name="loading_port" value="{{ container.loading_port or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="final_destination" class="form-label">Final Destination</label>
+                                <input type="text" class="form-control" id="final_destination" name="final_destination" value="{{ container.final_destination or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="opr" class="form-label">OPR</label>
+                                <input type="text" class="form-control" id="opr" name="opr" value="{{ container.opr or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="arrival_date" class="form-label">Arrival Date</label>
+                                <input type="date" class="form-control" id="arrival_date" name="arrival_date" value="{{ container.arrival_date.strftime('%Y-%m-%d') if container.arrival_date else '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="bl_number" class="form-label">BL Number</label>
+                                <input type="text" class="form-control" id="bl_number" name="bl_number" value="{{ container.bl_number or '' }}">
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Note:</strong> These changes will update the container details directly and won't create a new status record.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ url_for('container_detail', id=container.id) }}" class="btn btn-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-success">Update Container</button>
+                    </div>
+                    
+                    <!-- Hidden field to indicate which tab was active on submit -->
+                    <input type="hidden" id="active_tab" name="active_tab" value="status">
+                </form>
+            </div>
+        </div>
+
+        <!-- Status History Preview -->
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i> Status History</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Location</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for status in container.statuses|sort(attribute='created_at')|reverse %}
+                            {% if loop.index <= 5 %}
+                            <tr>
+                                <td>{{ status.date.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    {% if status.status == 'loaded' %}
+                                    <span class="badge bg-success">Loaded</span>
+                                    {% elif status.status == 'discharged' %}
+                                    <span class="badge bg-warning text-dark">Discharged</span>
+                                    {% elif status.status == 'emptied' %}
+                                    <span class="badge bg-info">Emptied</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ status.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ status.location }}</td>
+                                <td>{{ status.notes|default('', true)|truncate(30) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">No status records found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if container.statuses|length > 5 %}
+                <div class="text-center mt-2">
+                    <small class="text-muted">Showing 5 most recent records. View all on container detail page.</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Track active tab for form submission
+        const statusTab = document.getElementById('status-tab');
+        const detailsTab = document.getElementById('details-tab');
+        const activeTabField = document.getElementById('active_tab');
+        
+        statusTab.addEventListener('click', function() {
+            activeTabField.value = 'status';
+        });
+        
+        detailsTab.addEventListener('click', function() {
+            activeTabField.value = 'details';
+        });
+        
+        // Auto-populate notes based on status selection
+        const statusSelect = document.getElementById('status');
+        const notesField = document.getElementById('notes');
+        
+        statusSelect.addEventListener('change', function() {
+            // Only auto-populate if notes field is empty
+            if (!notesField.value.trim()) {
+                switch(this.value) {
+                    case 'emptied':
+                        notesField.value = 'Empty Container';
+                        break;
+                    case 'full':
+                        notesField.value = 'Full Container';
+                        break;
+                    case 'in_transit':
+                        notesField.value = 'In Transit';
+                        break;
+                    case 'customs_hold':
+                        notesField.value = 'Hold by the Customer';
+                        break;
+                    case 'ready_for_pickup':
+                        notesField.value = 'Ready for Pickup';
+                        break;
+                    default:
+                        // Don't change anything for other statuses
+                        break;
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

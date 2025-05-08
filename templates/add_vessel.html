@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4">Add New Vessel</h1>
+
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Vessel Information</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('add_vessel') }}">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="name" class="form-label">Vessel Name</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="imo_number" class="form-label">Voyage Number</label>
+                    <input type="text" class="form-control" id="imo_number" name="imo_number" required>
+                    <div class="form-text">Voyage identifier for this vessel journey</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="vessel_type" class="form-label">Vessel Type</label>
+                    <select class="form-select" id="vessel_type" name="vessel_type" required>
+                        <option value="" selected disabled>Select vessel type</option>
+                        <option value="Container Ship">Container Ship</option>
+                        <option value="Bulk Carrier">Bulk Carrier</option>
+                        <option value="Oil Tanker">Oil Tanker</option>
+                        <option value="Chemical Tanker">Chemical Tanker</option>
+                        <option value="LNG Carrier">LNG Carrier</option>
+                        <option value="Ro-Ro">Ro-Ro</option>
+                        <option value="Car Carrier">Car Carrier</option>
+                        <option value="General Cargo">General Cargo</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="capacity_teu" class="form-label">Capacity (TEU)</label>
+                    <input type="number" class="form-control" id="capacity_teu" name="capacity_teu">
+                    <div class="form-text">Twenty-foot Equivalent Units capacity</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="current_location" class="form-label">Current Location</label>
+                    <input type="text" class="form-control" id="current_location" name="current_location" required>
+                    <div class="form-text">Port or sea location where the vessel is currently</div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="current_destination" class="form-label">Current Destination</label>
+                    <input type="text" class="form-control" id="current_destination" name="current_destination">
+                    <div class="form-text">Port where the vessel is headed</div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="status" class="form-label">Vessel Status</label>
+                <select class="form-select" id="status" name="status" required>
+                    <option value="Arrived" selected>Arrived</option>
+                    <option value="Departed">Departed</option>
+                </select>
+            </div>
+            
+            <div class="mb-3">
+                <label for="eta" class="form-label">Estimated Time of Arrival (ETA)</label>
+                <input type="date" class="form-control" id="eta" name="eta">
+                <div class="form-text">Expected arrival date at the destination</div>
+            </div>
+            
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">Add Vessel</button>
+                <a href="{{ url_for('vessels') }}" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

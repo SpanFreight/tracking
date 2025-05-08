@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Load Container</h1>
+    <p>Load container <strong>{{ container.container_number }}</strong> onto a vessel.</p>
+    
+    <!-- Add container location info for validation -->
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> Container current location: <strong>{{ container.get_current_status().location if container.get_current_status() else 'Unknown' }}</strong>
+    </div>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="post" id="loadContainerForm">
+                <div class="mb-3">
+                    <label for="vessel_id" class="form-label">Select Vessel</label>
+                    <select class="form-select" id="vessel_id" name="vessel_id" required>
+                        <option value="">-- Select a vessel --</option>
+                        {% for vessel in vessels %}
+                            {% if vessel.status != 'Departed' %}
+                            <option value="{{ vessel.id }}" data-location="{{ vessel.current_location }}" 
+                                {% if vessel.current_location != container.get_current_status().location %}disabled{% endif %}>
+                                {{ vessel.name }} (IMO: {{ vessel.imo_number }}) - {{ vessel.current_location }}
+                                {% if vessel.current_location != container.get_current_status().location %}
+                                [Location mismatch]
+                                {% endif %}
+                            </option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <div id="location-mismatch" class="form-text text-danger" style="display:none;">
+                        <i class="fas fa-exclamation-triangle"></i> Warning: Vessel location does not match container location
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="operation_date" class="form-label">Loading Date</label>
+                    <input type="date" class="form-control" id="operation_date" name="operation_date" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="location" class="form-label">Loading Port</label>
+                    <input type="text" class="form-control" id="location" name="location" required>
+                    <div id="loading-port-message" class="form-text text-success" style="display:none;">
+                        <i class="fas fa-info-circle"></i> Automatically set to vessel's current location
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="notes" class="form-label">Notes (Optional)</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" id="submitButton">Load Container</button>
+                <a href="{{ url_for('container_detail', id=container.id) }}" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Add warning if no vessels are available -->
+    {% if not vessels|selectattr('status', '!=', 'Departed')|list %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle"></i> No vessels available for loading. All vessels have departed.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set today's date as default
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('operation_date').value = today;
+        
+        // Get container's current location
+        const containerLocation = '{{ container.get_current_status().location if container.get_current_status() else "" }}';
+        
+        // Get vessel location when vessel is selected
+        const vesselSelect = document.getElementById('vessel_id');
+        const locationInput = document.getElementById('location');
+        const locationMessage = document.getElementById('loading-port-message');
+        const locationMismatch = document.getElementById('location-mismatch');
+        const submitButton = document.getElementById('submitButton');
+        const loadForm = document.getElementById('loadContainerForm');
+        
+        // Filter vessels by location in the dropdown
+        Array.from(vesselSelect.options).forEach(option => {
+            if (option.value) { // Skip the default empty option
+                const vesselLocation = option.getAttribute('data-location');
+                if (containerLocation && vesselLocation !== containerLocation) {
+                    option.disabled = true;
+                    option.text += " [Location mismatch]";
+                }
+            }
+        });
+        
+        vesselSelect.addEventListener('change', function() {
+            const selectedVesselId = this.value;
+            if (selectedVesselId) {
+                // Get the selected option
+                const selectedOption = this.options[this.selectedIndex];
+                const vesselLocation = selectedOption.getAttribute('data-location');
+                
+                // Fetch vessel details via API
+                fetch(`/api/vessel/${selectedVesselId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.current_location) {
+                            locationInput.value = data.current_location;
+                            locationMessage.style.display = 'block';
+                            
+                            // Enforce location matching
+                            if (containerLocation && data.current_location !== containerLocation) {
+                                // Strict enforcement - reset selection if locations don't match
+                                vesselSelect.value = "";
+                                locationInput.value = "";
+                                locationMessage.style.display = 'none';
+                                alert(`Cannot load container to this vessel. Container location (${containerLocation}) doesn't match vessel location (${data.current_location}).`);
+                            } else {
+                                locationMismatch.style.display = 'none';
+                            }
+                        } else {
+                            locationInput.value = '';
+                            locationMessage.style.display = 'none';
+                        }
+                    })
+                    .catch(error => console.error('Error fetching vessel data:', error));
+            } else {
+                locationInput.value = '';
+                locationMessage.style.display = 'none';
+            }
+        });
+        
+        // Strict validation on form submission
+        loadForm.addEventListener('submit', function(event) {
+            if (vesselSelect.value) {
+                const vesselLocation = locationInput.value;
+                
+                // Strict enforcement - prevent submission if locations don't match
+                if (containerLocation && vesselLocation && vesselLocation !== containerLocation) {
+                    event.preventDefault();
+                    alert(`Cannot load container to this vessel. Container location (${containerLocation}) doesn't match vessel location (${vesselLocation}).`);
+                    return false;
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

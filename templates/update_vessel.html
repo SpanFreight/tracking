@@ -1,0 +1,157 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4">Update Vessel</h1>
+
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Vessel Information</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('update_vessel', id=vessel.id) }}">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="name" class="form-label">Vessel Name</label>
+                    <input type="text" class="form-control" id="name" name="name" value="{{ vessel.name }}" required>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="imo_number" class="form-label">Voyage Number</label>
+                    <input type="text" class="form-control" id="imo_number" name="imo_number" value="{{ vessel.imo_number }}" required>
+                    <div class="form-text">Unique voyage identifier for this vessel journey</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="vessel_type" class="form-label">Vessel Type</label>
+                    <select class="form-select" id="vessel_type" name="vessel_type" required>
+                        <option value="" disabled>Select vessel type</option>
+                        <option value="Container Ship" {% if vessel.vessel_type == 'Container Ship' %}selected{% endif %}>Container Ship</option>
+                        <option value="Bulk Carrier" {% if vessel.vessel_type == 'Bulk Carrier' %}selected{% endif %}>Bulk Carrier</option>
+                        <option value="Oil Tanker" {% if vessel.vessel_type == 'Oil Tanker' %}selected{% endif %}>Oil Tanker</option>
+                        <option value="Chemical Tanker" {% if vessel.vessel_type == 'Chemical Tanker' %}selected{% endif %}>Chemical Tanker</option>
+                        <option value="LNG Carrier" {% if vessel.vessel_type == 'LNG Carrier' %}selected{% endif %}>LNG Carrier</option>
+                        <option value="Ro-Ro" {% if vessel.vessel_type == 'Ro-Ro' %}selected{% endif %}>Ro-Ro</option>
+                        <option value="Car Carrier" {% if vessel.vessel_type == 'Car Carrier' %}selected{% endif %}>Car Carrier</option>
+                        <option value="General Cargo" {% if vessel.vessel_type == 'General Cargo' %}selected{% endif %}>General Cargo</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="capacity_teu" class="form-label">Capacity (TEU)</label>
+                    <input type="number" class="form-control" id="capacity_teu" name="capacity_teu" value="{{ vessel.capacity_teu or '' }}">
+                    <div class="form-text">Twenty-foot Equivalent Units capacity</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="current_location" class="form-label">Current Location</label>
+                    <input type="text" class="form-control" id="current_location" name="current_location" value="{{ vessel.current_location or '' }}" required>
+                    <div class="form-text">Port or sea location where the vessel is currently</div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="current_destination" class="form-label">Current Destination</label>
+                    <input type="text" class="form-control" id="current_destination" name="current_destination" value="{{ vessel.current_destination or '' }}">
+                    <div class="form-text">Port where the vessel is headed</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="eta" class="form-label">Estimated Time of Arrival (ETA)</label>
+                    <input type="date" class="form-control" id="eta" name="eta" value="{{ vessel.eta.strftime('%Y-%m-%d') if vessel.eta else '' }}" onchange="updateStatusBasedOnETA()">
+                    <div class="form-text">Expected arrival date at the destination. Setting ETA to today or earlier will automatically set status to "Arrived".</div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="status" class="form-label">Vessel Status</label>
+                    <select class="form-select" id="status" name="status" required>
+                        <option value="Arrived" {% if vessel.status == 'Arrived' %}selected{% endif %}>Arrived</option>
+                        <option value="Departed" {% if vessel.status == 'Departed' %}selected{% endif %}>Departed</option>
+                    </select>
+                    <div class="form-text" id="status-help">Status is set manually or automatically based on ETA.</div>
+                </div>
+            </div>
+            
+            <div class="mt-4 d-flex justify-content-between">
+                <div>
+                    <button type="submit" class="btn btn-primary">Update Vessel</button>
+                    <a href="{{ url_for('vessel_detail', id=vessel.id) }}" class="btn btn-secondary ms-2">Cancel</a>
+                </div>
+                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteVesselModal">
+                    <i class="fas fa-trash"></i> Delete Vessel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Vessel Modal -->
+<div class="modal fade" id="deleteVesselModal" tabindex="-1" aria-labelledby="deleteVesselModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteVesselModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete vessel <strong>{{ vessel.name }}</strong> (IMO: {{ vessel.imo_number }})?</p>
+                
+                {% set loaded_containers = vessel.get_loaded_containers() %}
+                {% if loaded_containers %}
+                    <div class="alert alert-warning">
+                        <strong>Warning:</strong> This vessel has {{ loaded_containers|length }} container(s) currently loaded.
+                        Deleting this vessel will affect these container records.
+                    </div>
+                {% endif %}
+                
+                <p class="text-danger">This action cannot be undone. All vessel movement history will also be deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('delete_vessel', id=vessel.id) }}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete Vessel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateStatusBasedOnETA() {
+        const etaInput = document.getElementById('eta');
+        const statusSelect = document.getElementById('status');
+        const statusHelp = document.getElementById('status-help');
+        
+        if (etaInput.value) {
+            // Get the selected ETA date and today's date
+            const etaDate = new Date(etaInput.value);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // If ETA is today or earlier, set status to "Arrived"
+            if (etaDate <= today) {
+                statusSelect.value = 'Arrived';
+                statusHelp.innerHTML = '<span class="text-info">Status set to "Arrived" because ETA is today or in the past.</span>';
+                statusSelect.disabled = true;  // Optional: disable manual selection
+            } else {
+                statusHelp.innerHTML = 'Status is set manually or automatically based on ETA.';
+                statusSelect.disabled = false;
+            }
+        } else {
+            statusHelp.innerHTML = 'Status is set manually or automatically based on ETA.';
+            statusSelect.disabled = false;
+        }
+    }
+    
+    // Run once on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateStatusBasedOnETA();
+    });
+</script>
+{% endblock %}

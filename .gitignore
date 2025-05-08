@@ -1,0 +1,27 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# SQLite database file (not needed when using PostgreSQL)
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads and backups
+uploads/
+backups/
+
+# Logs
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db

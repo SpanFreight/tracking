@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4">Discharge Container from Vessel</h1>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Container Information</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Container Number:</strong> {{ container.container_number }}</p>
+                <p><strong>Container Type:</strong> {{ container.container_type }}</p>
+                <p><strong>Current Status:</strong> <span class="badge bg-success">On Vessel</span></p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Vessel:</strong> {{ vessel.name }}</p>
+                <p><strong>Vessel IMO:</strong> {{ vessel.imo_number }}</p>
+                <p><strong>Current Location:</strong> {{ vessel.current_location or 'N/A' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0">Discharge Container</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('discharge_container', id=container.id) }}">
+            <div class="mb-3">
+                <label for="operation_date" class="form-label">Discharge Date</label>
+                <input type="date" class="form-control" id="operation_date" name="operation_date" required>
+            </div>
+            
+            <div class="mb-3">
+                <label for="location" class="form-label">Discharge Port</label>
+                <input type="text" class="form-control" id="location" name="location" value="{{ default_location }}" required>
+                <div class="form-text">This is the vessel's current port, where the container will be discharged</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="notes" class="form-label">Notes (Optional)</label>
+                <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+            </div>
+            
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="print-delivery-order" name="print_delivery_order" checked>
+                <label class="form-check-label" for="print-delivery-order">
+                    Print delivery order after discharge
+                </label>
+            </div>
+            
+            <div class="mt-4">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    When discharged, the container's status will automatically be set to "Discharged" at this port.
+                </div>
+                <button type="submit" class="btn btn-warning">Discharge Container from Vessel</button>
+                <a href="{{ url_for('container_detail', id=container.id) }}" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set today's date as default
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('operation_date').value = today;
+    });
+
+    // Add event listener to form submit
+    document.querySelector('form').addEventListener('submit', function(event) {
+        // Check if the print checkbox is checked
+        if (document.getElementById('print-delivery-order').checked) {
+            // Store that we want to print after submission
+            localStorage.setItem('printDeliveryOrder', '{{ container.id }}');
+        }
+    });
+</script>
+
+<script>
+    $(document).ready(function() {
+        // Check if we need to print a delivery order after page load
+        // This will run when redirected back after successful discharge
+        const printContainerId = localStorage.getItem('printDeliveryOrder');
+        if (printContainerId) {
+            // Remove the flag from localStorage immediately to prevent loops
+            localStorage.removeItem('printDeliveryOrder');
+            
+            // Get the delivery order URL by properly replacing the path segments
+            let deliveryOrderUrl = "{{ url_for('container_detail', id=container.id) }}".replace('container_detail', 'delivery-order');
+            
+            // Use window.location.replace() instead of href to prevent adding to browser history
+            window.location.replace(deliveryOrderUrl);
+        }
+    });
+</script>
+{% endblock %}

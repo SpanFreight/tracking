@@ -1,0 +1,627 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Container Details</h1>
+    <div>
+        <a href="{{ url_for('update_status', id=container.id) }}" class="btn btn-success">
+            <i class="fas fa-edit"></i> Update Status
+        </a>
+        
+        <!-- Fix discharge button to ensure direct navigation without reloading -->
+        {% set latest_movement = container.movements|sort(attribute='created_at', reverse=true)|first %}
+        {% if latest_movement and latest_movement.operation_type == 'load' %}
+        <a href="{{ url_for('discharge_container', id=container.id) }}" class="btn btn-warning" id="discharge-button">
+            <i class="fas fa-arrow-down"></i> Discharge from Vessel
+        </a>
+        {% else %}
+        <a href="{{ url_for('load_container', id=container.id) }}" class="btn btn-info" id="load-button">
+            <i class="fas fa-arrow-up"></i> Load onto Vessel
+        </a>
+        {% endif %}
+        
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteContainerModal">
+            <i class="fas fa-trash"></i> Delete Container
+        </button>
+    </div>
+</div>
+
+<!-- Delete Container Modal -->
+<div class="modal fade" id="deleteContainerModal" tabindex="-1" aria-labelledby="deleteContainerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteContainerModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete container <strong>{{ container.container_number }}</strong>?</p>
+                <p class="text-danger">This action cannot be undone. All status history for this container will also be deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="{{ url_for('delete_container', id=container.id) }}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete Container</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i> Container Information</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Container Number:</strong> {{ container.container_number }}</p>
+                <p><strong>Container Type:</strong> {{ container.container_type }}</p>
+                <p><strong>OPR:</strong> {{ container.opr if container.opr else 'N/A' }}</p>
+                <p><strong>Last Updated:</strong> {{ fresh_status.date.strftime('%Y-%m-%d') if fresh_status else 'N/A' }}</p>
+                <p><strong>Loading Port:</strong> {{ container.loading_port if container.loading_port else 'N/A' }}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Current Status:</strong> 
+                    <span class="badge {{ 'bg-success' if fresh_status and fresh_status.status == 'loaded' 
+                                          else 'bg-warning' if fresh_status and fresh_status.status == 'discharged' 
+                                          else 'bg-info' if fresh_status and fresh_status.status == 'emptied'
+                                          else 'bg-primary' if fresh_status and fresh_status.status == 'full'
+                                          else 'bg-secondary' }}">
+                        {{ fresh_status.status if fresh_status else 'Unknown' }}
+                    </span>
+                </p>
+                {% if fresh_status and fresh_status.status == 'discharged' %}
+                <div class="btn-group">
+                    <a href="{{ url_for('delivery_order', id=container.id) }}"
+                       class="btn btn-primary"
+                       target="_self"
+                       {% if not container.can_print_delivery_order(current_user.id) %}
+                         onclick="event.preventDefault(); showAuthorizationMessage();"
+                       {% endif %}
+                    >
+                        <i class="fas fa-print me-2"></i> Print Delivery Order
+                    </a>
+                    <a href="{{ url_for('container_detail', id=container.id) }}" 
+                       class="btn btn-secondary"
+                       id="refresh-page-btn"
+                       title="Refresh page to reset warning message">
+                        <i class="fas fa-sync-alt"></i>
+                    </a>
+                </div>
+                <div id="authorization-alert" class="alert alert-warning mt-3" style="display: none;">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    This delivery order has already been printed. Please contact an administrator for authorization to print again.
+
+                    {% if current_user.is_admin %}
+                    <!-- Show authorization form directly for admins -->
+                    <div class="mt-3">
+                        <form action="{{ url_for('authorize_additional_print', id=container.id) }}" method="POST" class="row g-3">
+                            <div class="col-md-8">
+                                <select class="form-select" name="user_id" required>
+                                    <option value="">-- Select User to Authorize --</option>
+                                    <!-- We'll populate this via JavaScript -->
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="fas fa-user-check me-2"></i> Authorize
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    {% else %}
+                    <!-- Add Request Access button for non-admin users -->
+                    <div class="mt-3">
+                        <form action="{{ url_for('request_print_access', id=container.id) }}" method="POST">
+                            <button type="submit" class="btn btn-info">
+                                <i class="fas fa-envelope me-2"></i> Request Print Access
+                            </button>
+                        </form>
+                        
+                        <!-- Check if user has pending request -->
+                        <div class="pending-request-status mt-2" id="pending-request-status"></div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <p><strong>Final Destination:</strong> {{ container.final_destination if container.final_destination else 'N/A' }}</p>
+                <p><strong>Arrival Date:</strong> {{ container.arrival_date.strftime('%Y-%m-%d') if container.arrival_date else 'N/A' }}</p>
+                <p><strong>BL Number:</strong> {{ container.bl_number if container.bl_number else 'N/A' }}</p>
+                <p><strong>Location:</strong> 
+                    {% if location_type == 'vessel' %}
+                        On vessel <a href="{{ url_for('vessel_detail', id=container.get_current_location()['vessel'].id) }}">{{ container.get_current_location()['vessel'].name }}</a>
+                        (since {{ container.get_current_location()['since'].strftime('%Y-%m-%d') }})
+                    {% else %}
+                        {{ fresh_status.location if fresh_status else 'Unknown' }}
+                        (since {{ fresh_status.date.strftime('%Y-%m-%d') if fresh_status else 'N/A' }})
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Status History <small class="ms-2">(most recent first)</small></h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th>Location</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for status in container.statuses|sort(attribute='created_at', reverse=True) %}
+                    <tr>
+                        <td>{{ status.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ status.created_at.strftime('%H:%M:%S') }}</td>
+                        <td>
+                            {% if status.status == 'loaded' %}
+                            <span class="badge bg-success">Loaded</span>
+                            {% elif status.status == 'discharged' %}
+                            <span class="badge bg-warning text-dark">Discharged</span>
+                            {% elif status.status == 'emptied' %}
+                            <span class="badge bg-info">Emptied</span>
+                            {% elif status.status == 'full' %}
+                            <span class="badge bg-primary">Full</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ status.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ status.location }}</td>
+                        <td>{{ status.notes or 'N/A' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center">No status updates available</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">Vessel Movement History <small class="ms-2">(most recent first)</small></h5>
+    </div>
+    <div class="card-body">
+        {% if container.movements %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Operation</th>
+                        <th>Vessel</th>
+                        <th>Location</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for movement in container.movements|sort(attribute='created_at', reverse=true) %}
+                    <tr>
+                        <td>{{ movement.operation_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ movement.created_at.strftime('%H:%M:%S') }}</td>
+                        <td>
+                            {% if movement.operation_type == 'load' %}
+                            <span class="badge bg-success">Loaded</span>
+                            {% elif movement.operation_type == 'discharge' %}
+                            <span class="badge bg-warning text-dark">Discharged</span>
+                            {% elif movement.operation_type == 'location_update' %}
+                            <span class="badge bg-info">Location Update</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ movement.operation_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('vessel_detail', id=movement.vessel.id) }}">
+                                {{ movement.vessel.name }}
+                            </a>
+                        </td>
+                        <td>{{ movement.location }}</td>
+                        <td>{{ movement.notes or 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-center">No vessel movement history for this container.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add explanatory text about DO printing for clarity -->
+<div class="card mb-4">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i> Delivery Order Information</h5>
+    </div>
+    <div class="card-body">
+        <ul>
+            <li>You can print a delivery order when the container is in <strong>discharged</strong> status.</li>
+            <li>If a container is printed, then loaded onto a vessel and discharged again, you can print a new delivery order without requiring authorization.</li>
+            <li>For multiple prints without a new discharge event, admin authorization is required.</li>
+        </ul>
+        
+        {% if container_can_print %}
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle me-2"></i> You are authorized to print this container's delivery order.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Hide Delivery Order History section for admin users -->
+{% if not current_user.is_admin %}
+<div class="card mt-3">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">Delivery Order History</h5>
+    </div>
+    <div class="card-body">
+        <div id="delivery-print-history">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading print history...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Keep this admin section with the more specific condition -->
+{% if current_user.is_admin and fresh_status and fresh_status.status == 'discharged' %}
+<div class="card mb-3">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0">
+            <i class="fas fa-print me-2"></i> Delivery Order Print Management
+        </h5>
+    </div>
+    <div class="card-body">
+        <h6>Print History</h6>
+        <div class="table-responsive" id="print-history-table">
+            <table class="table table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>User</th>
+                        <th>DO Number</th>
+                        <th>Authorized By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" class="text-center">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <hr>
+        
+        <h6>Authorize Additional Print</h6>
+        <p class="small text-muted">
+            <i class="fas fa-info-circle"></i> 
+            Use this form to authorize a specific user to print a new delivery order for this container.
+        </p>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#authorizeModal">
+            <i class="fas fa-user-check me-2"></i> Authorize User for Printing
+        </button>
+    </div>
+</div>
+
+<!-- Add modal for user authorization -->
+<div class="modal fade" id="authorizeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Authorize User for Delivery Order Print</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('authorize_additional_print', id=container.id) }}" method="POST">
+                <div class="modal-body">
+                    <p>Select a user to authorize for printing a new delivery order:</p>
+                    <div class="mb-3">
+                        <label for="user_id" class="form-label">User</label>
+                        <select name="user_id" id="user_id" class="form-select" required>
+                            <option value="">-- Select User --</option>
+                            <!-- Load users via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i> 
+                        This will allow the selected user to print a new delivery order with a new DO number.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Authorize User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add to existing page scripts -->
+<script>
+    // Load print history when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load print history
+        fetch('/api/container/{{ container.id }}/print-history')
+            .then(response => response.json())
+            .then(data => {
+                const tableBody = document.querySelector('#print-history-table tbody');
+                tableBody.innerHTML = '';
+                
+                if (data.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="4" class="text-center">No print history found</td>';
+                    tableBody.appendChild(row);
+                } else {
+                    data.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${item.date}</td>
+                            <td>${item.user}</td>
+                            <td><span class="badge bg-info">${item.do_number}</span></td>
+                            <td>${item.authorized_by || '-'}</td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading print history:', error);
+                const tableBody = document.querySelector('#print-history-table tbody');
+                tableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading print history</td></tr>';
+            });
+            
+        // Load users for the authorization dropdown
+        {% if current_user.is_admin %}
+        fetch('/api/users/list')
+            .then(response => response.json())
+            .then(data => {
+                const selectElement = document.getElementById('user_id');
+                data.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = user.username;
+                    selectElement.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error loading users:', error));
+        {% endif %}
+    });
+</script>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    $(document).ready(function() {
+        // Load print history
+        $.ajax({
+            url: '/api/container/{{ container.id }}/print-history',
+            type: 'GET',
+            success: function(data) {
+                let html = '';
+                
+                if (data.length === 0) {
+                    html = '<div class="alert alert-info">No delivery orders have been printed for this container.</div>';
+                } else {
+                    html = '<table class="table table-sm table-striped">';
+                    html += '<thead><tr><th>Date</th><th>User</th><th>DO Number</th><th>Authorized By</th></tr></thead>';
+                    html += '<tbody>';
+                    
+                    data.forEach(function(print) {
+                        html += '<tr>';
+                        html += `<td>${print.date}</td>`;
+                        html += `<td>${print.user}</td>`;
+                        html += `<td>${print.do_number}</td>`;
+                        html += `<td>${print.authorized_by || '-'}</td>`;
+                        html += '</tr>';
+                    });
+                    
+                    html += '</tbody></table>';
+                }
+                
+                $('#delivery-print-history').html(html);
+            },
+            error: function(xhr) {
+                $('#delivery-print-history').html('<div class="alert alert-danger">Error loading print history</div>');
+            }
+        });
+
+        // Ensure the authorization dropdown has users if it's empty
+        const userSelect = $('#authorize-user-select');
+        if (userSelect.length > 0 && userSelect.find('option').length <= 1) {
+            $.ajax({
+                url: '/api/users/list',
+                type: 'GET',
+                success: function(data) {
+                    if (data && data.length > 0) {
+                        data.forEach(function(user) {
+                            userSelect.append(`<option value="${user.id}">${user.username}</option>`);
+                        });
+                    }
+                }
+            });
+        }
+    });
+
+    // Add this function to show the authorization message
+    function showAuthorizationMessage() {
+        const alert = document.getElementById('authorization-alert');
+        if (alert) {
+            alert.style.display = 'block';
+            
+            // If admin, populate the user dropdown
+            {% if current_user.is_admin %}
+            fetch('/api/users/list')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.querySelector('#authorization-alert select');
+                    if (select) {
+                        data.forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = user.username;
+                            select.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error loading users:', error));
+            {% endif %}
+            
+            // Smoothly scroll to the alert
+            alert.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    }
+    
+    // If there's an error message in the URL (from authorization attempt), show the alert
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auth_error') === '1') {
+            showAuthorizationMessage();
+        }
+    });
+
+    // Check if user has a pending print request
+    function checkPendingRequest() {
+        $.ajax({
+            url: '/api/container/{{ container.id }}/print-request-status',
+            type: 'GET',
+            success: function(data) {
+                const statusDiv = $('#pending-request-status');
+                
+                if (data.has_pending_request) {
+                    statusDiv.html(`
+                        <div class="alert alert-info">
+                            <i class="fas fa-clock me-2"></i>
+                            You have a pending request for print access submitted on ${data.requested_at}.
+                        </div>
+                    `);
+                } else if (data.status === 'rejected') {
+                    statusDiv.html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-times-circle me-2"></i>
+                            Your print access request was rejected.
+                        </div>
+                    `);
+                } else {
+                    statusDiv.html('');
+                }
+            },
+            error: function() {
+                // Silently fail - not critical functionality
+            }
+        });
+    }
+    
+    // Check pending request when authorization alert is shown
+    function showAuthorizationMessage() {
+        const alert = document.getElementById('authorization-alert');
+        if (alert) {
+            alert.style.display = 'block';
+            
+            // If admin, populate the user dropdown
+            {% if current_user.is_admin %}
+            fetch('/api/users/list')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.querySelector('#authorization-alert select');
+                    if (select) {
+                        data.forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = user.username;
+                            select.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error loading users:', error));
+            {% else %}
+            // For non-admin users, check for pending requests
+            checkPendingRequest();
+            {% endif %}
+            
+            // Smoothly scroll to the alert
+            alert.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    }
+
+    // Add an event listener for the refresh button to ensure it properly reloads the page
+    document.addEventListener('DOMContentLoaded', function() {
+        const refreshBtn = document.getElementById('refresh-page-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Force a full page reload by bypassing the cache
+                window.location.reload(true);
+            });
+        }
+    });
+
+    // Remove any existing event listener that might interfere with direct links
+    document.addEventListener('DOMContentLoaded', function() {
+        // Make sure all direct links work without interference
+        document.querySelectorAll('.direct-link').forEach(link => {
+            // Attach a clean click handler that performs direct navigation
+            link.addEventListener('click', function(e) {
+                // Don't prevent default behavior - let the browser navigate naturally
+                // Just ensure we navigate to the href directly
+                window.location.href = this.getAttribute('href');
+            });
+        });
+    });
+
+    // Remove all event listeners that might interfere with direct links
+    document.addEventListener('DOMContentLoaded', function() {
+        // Completely override the discharge and load button behavior
+        const dischargeButton = document.getElementById('discharge-button');
+        const loadButton = document.getElementById('load-button');
+        
+        if (dischargeButton) {
+            // Remove existing event listeners
+            const newDischargeButton = dischargeButton.cloneNode(true);
+            dischargeButton.parentNode.replaceChild(newDischargeButton, dischargeButton);
+            
+            // Add clean direct navigation
+            newDischargeButton.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = this.getAttribute('href');
+                return false;
+            };
+        }
+        
+        if (loadButton) {
+            // Remove existing event listeners
+            const newLoadButton = loadButton.cloneNode(true);
+            loadButton.parentNode.replaceChild(newLoadButton, loadButton);
+            
+            // Add clean direct navigation
+            newLoadButton.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = this.getAttribute('href');
+                return false;
+            };
+        }
+    });
+</script>
+{% endblock %}

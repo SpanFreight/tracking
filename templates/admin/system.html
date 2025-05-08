@@ -1,0 +1,489 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<h1 class="mb-4"><i class="fas fa-server me-2"></i> System Settings</h1>
+
+<div class="mb-4">
+    <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-2"></i> Back to Admin Panel
+    </a>
+    <a href="{{ url_for('admin_diagnostics') }}" class="btn btn-info ms-2">
+        <i class="fas fa-stethoscope me-2"></i> System Diagnostics
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i> System Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tbody>
+                        <tr>
+                            <th scope="row">Database Path</th>
+                            <td>{{ system_info.db_path }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Database Size</th>
+                            <td>{{ system_info.db_size }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Debug Mode</th>
+                            <td>{% if system_info.debug_mode %}<span class="badge bg-warning">Enabled</span>{% else %}<span class="badge bg-success">Disabled</span>{% endif %}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Upload Folder</th>
+                            <td>{{ system_info.upload_folder }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Allowed File Types</th>
+                            <td>{{ system_info.allowed_file_types }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h6 class="mt-4">Table Statistics</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Table</th>
+                                <th>Record Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Users</td>
+                                <td>{{ system_info.table_counts.users }}</td>
+                            </tr>
+                            <tr>
+                                <td>Containers</td>
+                                <td>{{ system_info.table_counts.containers }}</td>
+                            </tr>
+                            <tr>
+                                <td>Vessels</td>
+                                <td>{{ system_info.table_counts.vessels }}</td>
+                            </tr>
+                            <tr>
+                                <td>Container Statuses</td>
+                                <td>{{ system_info.table_counts.statuses }}</td>
+                            </tr>
+                            <tr>
+                                <td>Container Movements</td>
+                                <td>{{ system_info.table_counts.movements }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-cog me-2"></i> Environment Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tbody>
+                        <tr>
+                            <th scope="row">Python Version</th>
+                            <td>{{ system_info.python_version }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Flask Version</th>
+                            <td>{{ system_info.flask_version }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">SQLAlchemy Version</th>
+                            <td>{{ system_info.sqlalchemy_version }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Secret Key Set</th>
+                            <td>{% if system_info.secret_key_set %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-danger">No</span>{% endif %}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-database me-2"></i> Database Backups</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('admin_system') }}" method="POST" class="mb-4">
+                    <input type="hidden" name="action" value="create_backup">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-download me-2"></i> Create New Backup
+                    </button>
+                </form>
+
+                <h6>Existing Backups</h6>
+                {% if backups %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Date</th>
+                                    <th>Size</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for backup in backups %}
+                                    <tr>
+                                        <td>{{ backup.name }}</td>
+                                        <td>{{ backup.date }}</td>
+                                        <td>{{ backup.size }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('download_backup', filename=backup.name) }}" class="btn btn-primary">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteBackupModal{{ loop.index }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Delete Backup Modal -->
+                                            <div class="modal fade" id="deleteBackupModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header bg-danger text-white">
+                                                            <h5 class="modal-title">Confirm Delete</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <p>Are you sure you want to delete the backup file:</p>
+                                                            <p class="fw-bold">{{ backup.name }}</p>
+                                                            <p>Created on {{ backup.date }}</p>
+                                                            <p class="text-danger">This action cannot be undone.</p>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                            <form action="{{ url_for('delete_backup', filename=backup.name) }}" method="POST">
+                                                                <button type="submit" class="btn btn-danger">Delete</button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">No database backups found.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i> Danger Zone</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h6>Clear System Logs</h6>
+                    <p class="text-muted small">Clear system log files to free up disk space.</p>
+                    <form action="{{ url_for('admin_system') }}" method="POST">
+                        <input type="hidden" name="action" value="clear_logs">
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-eraser me-2"></i> Clear Logs
+                        </button>
+                    </form>
+                </div>
+                
+                <hr>
+                
+                <div>
+                    <h6 class="text-danger">Reset Database</h6>
+                    <p class="text-muted small">This will delete ALL data in the database and recreate it with sample data.</p>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#resetDbModal">
+                        <i class="fas fa-trash-alt me-2"></i> Reset Database
+                    </button>
+                    
+                    <!-- Modal for DB Reset confirmation -->
+                    <div class="modal fade" id="resetDbModal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title">WARNING: Reset Database</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="alert alert-danger">
+                                        <i class="fas fa-exclamation-triangle fa-2x float-start me-3"></i>
+                                        <p><strong>DANGER:</strong> This action will DELETE ALL DATA in the database!</p>
+                                    </div>
+                                    
+                                    <p>All users, containers, vessels, statuses, and movements will be permanently deleted.</p>
+                                    <p>A new database will be created with sample data.</p>
+                                    <p>You will be logged out because all user accounts will be recreated.</p>
+                                    
+                                    <p class="fw-bold mt-3">To confirm, type 'RESET' below:</p>
+                                    <form id="resetDbForm" action="{{ url_for('admin_reset_db') }}" method="POST">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control" id="confirmReset" name="confirm" required>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" form="resetDbForm" class="btn btn-danger" id="confirmResetBtn">Reset Database</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div>
+                    <h6 class="text-danger">Recreate Database With New Schema</h6>
+                    <p class="text-muted small">This will DELETE the existing database and create a new one with the updated container fields schema.</p>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#recreateDbModal">
+                        <i class="fas fa-database me-2"></i> Recreate Database
+                    </button>
+                    
+                    <!-- Modal for DB Recreation confirmation -->
+                    <div class="modal fade" id="recreateDbModal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header bg-danger text-white">
+                                    <h5 class="modal-title">WARNING: Recreate Database</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="alert alert-danger">
+                                        <i class="fas fa-exclamation-triangle fa-2x float-start me-3"></i>
+                                        <p><strong>DANGER:</strong> This action will DELETE ALL DATA in the database!</p>
+                                    </div>
+                                    
+                                    <p>All data will be permanently deleted.</p>
+                                    <p>A new empty database will be created with the updated schema including the new container fields.</p>
+                                    <p>A default admin account will be created (username: <strong>admin</strong>, password: <strong>admin</strong>).</p>
+                                    <p>You will need to log in again with this default account.</p>
+                                    
+                                    <p class="fw-bold mt-3">To confirm, type 'RECREATE' below:</p>
+                                    <form id="recreateDbForm" action="{{ url_for('recreate_database') }}" method="POST">
+                                        <div class="mb-3">
+                                            <input type="text" class="form-control" id="confirmRecreate" name="confirm" required autocomplete="off">
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" form="recreateDbForm" class="btn btn-danger">Recreate Database</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Add this within your existing database management section -->
+
+                <div class="card mt-4 border-danger">
+                  <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Recreate Database</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="alert alert-danger">
+                      <h5 class="alert-heading">Danger Zone!</h5>
+                      <p>This action will <strong>DELETE</strong> the existing database and create a new one with the updated schema.</p>
+                      <p>All data will be lost. A backup will be created automatically before deletion.</p>
+                    </div>
+                    <form method="POST" action="{{ url_for('recreate_database') }}" onsubmit="return confirm('Are you absolutely sure you want to delete all data and recreate the database?');">
+                      <div class="mb-3">
+                        <label for="confirm" class="form-label">Type 'RECREATE' to confirm</label>
+                        <input type="text" class="form-control" id="confirm" name="confirm" required autocomplete="off">
+                      </div>
+                      <button type="submit" class="btn btn-danger">Recreate Database</button>
+                    </form>
+                  </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Replace the existing Delivery Order Counter section with this improved version -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-sort-numeric-down me-2"></i> Delivery Order Counter</h5>
+            </div>
+            <div class="card-body">
+                <p>Current delivery order counter: 
+                    <span class="badge bg-primary fs-5" id="current-do-counter">Loading...</span>
+                </p>
+                
+                <form action="{{ url_for('admin_system') }}" method="POST" id="resetCounterForm" class="mt-3">
+                    <input type="hidden" name="action" value="reset_delivery_counter">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <label for="new_value" class="col-form-label">Reset counter to:</label>
+                        </div>
+                        <div class="col-auto">
+                            <input type="number" id="new_value" name="new_value" class="form-control" value="1" min="1">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-redo me-2"></i> Reset Counter
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i> Warning: Resetting the delivery order counter will affect all new delivery orders. This action cannot be undone.
+                </div>
+                
+                <div id="reset-success" class="alert alert-success mt-3" style="display: none;">
+                    <i class="fas fa-check-circle me-2"></i> Counter has been reset successfully!
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add validation for reset confirmation
+        document.getElementById('resetDbForm').addEventListener('submit', function(e) {
+            const confirmText = document.getElementById('confirmReset').value;
+            if (confirmText !== 'RESET') {
+                e.preventDefault();
+                alert('Please type RESET to confirm database reset');
+                return false;
+            }
+        });
+        
+        // Add validation for recreate confirmation
+        document.getElementById('recreateDbForm').addEventListener('submit', function(e) {
+            const confirmText = document.getElementById('confirmRecreate').value;
+            if (confirmText !== 'RECREATE') {
+                e.preventDefault();
+                alert('Please type RECREATE to confirm database recreation');
+                return false;
+            }
+        });
+        
+        // Add confirmation for counter reset
+        document.getElementById('resetCounterForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const newValue = document.getElementById('new_value').value;
+            
+            if (confirm(`Are you sure you want to reset the delivery order counter to ${newValue}?`)) {
+                // Show loading state
+                const submitButton = this.querySelector('button[type="submit"]');
+                const originalText = submitButton.innerHTML;
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Resetting...';
+                
+                // Use fetch to reset the counter with better error handling
+                fetch('{{ url_for("admin_reset_delivery_counter") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ new_value: parseInt(newValue) })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || `HTTP Error ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Update the counter display
+                        const counterElement = document.getElementById('current-do-counter');
+                        if (counterElement) {
+                            counterElement.textContent = String(data.counter).padStart(7, '0');
+                        }
+                        
+                        // Show success message - with null check
+                        const successElement = document.getElementById('reset-success');
+                        if (successElement) {
+                            successElement.style.display = 'block';
+                            successElement.innerHTML = `<i class="fas fa-check-circle me-2"></i> Counter has been reset to ${String(data.counter).padStart(7, '0')}`;
+                            
+                            // Hide success message after 5 seconds
+                            setTimeout(() => {
+                                if (successElement) { // Double-check it still exists
+                                    successElement.style.display = 'none';
+                                }
+                            }, 5000);
+                        } else {
+                            // Create a temporary success message if the element doesn't exist
+                            const formContainer = this.closest('.card-body');
+                            if (formContainer) {
+                                const tempAlert = document.createElement('div');
+                                tempAlert.className = 'alert alert-success mt-3';
+                                tempAlert.innerHTML = `<i class="fas fa-check-circle me-2"></i> Counter has been reset to ${String(data.counter).padStart(7, '0')}`;
+                                formContainer.appendChild(tempAlert);
+                                
+                                // Remove the temporary alert after 5 seconds
+                                setTimeout(() => tempAlert.remove(), 5000);
+                            } else {
+                                // Just show an alert if we can't insert the message
+                                alert(`Success! Counter reset to ${String(data.counter).padStart(7, '0')}`);
+                            }
+                        }
+                    } else {
+                        throw new Error(data.error || 'Failed to reset counter');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(`Error: ${error.message}`);
+                })
+                .finally(() => {
+                    // Always reset button state
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalText;
+                    
+                    // Refresh the counter display to show current value even after error
+                    fetch('/api/current-delivery-counter')
+                        .then(response => response.json())
+                        .then(data => {
+                            const counterElement = document.getElementById('current-do-counter');
+                            if (counterElement && data.counter) {
+                                counterElement.textContent = String(data.counter).padStart(7, '0');
+                            }
+                        })
+                        .catch(err => console.error('Failed to refresh counter:', err));
+                });
+            }
+        });
+
+        // Load the current counter value
+        fetch('/api/current-delivery-counter')
+            .then(response => response.json())
+            .then(data => {
+                const counterElement = document.getElementById('current-do-counter');
+                if (counterElement && data.counter) {
+                    counterElement.textContent = String(data.counter).padStart(7, '0');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching current counter:', error);
+                const counterElement = document.getElementById('current-do-counter');
+                if (counterElement) {
+                    counterElement.textContent = "Error";
+                    counterElement.className = "badge bg-danger";
+                }
+            });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,208 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Add New Container</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Add Single Container</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_container') }}">
+                    <div class="mb-3">
+                        <label for="container_number" class="form-label">Container Number</label>
+                        <input type="text" class="form-control" id="container_number" name="container_number" required>
+                        <div class="form-text">Enter the unique container number (e.g., ABCD1234567)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="container_type" class="form-label">Container Type</label>
+                        <select class="form-select" id="container_type" name="container_type" required>
+                            <option value="" selected disabled>Select container type</option>
+                            <option value="20GP">20' General Purpose</option>
+                            <option value="40GP">40' General Purpose</option>
+                            <option value="40HC">40' High Cube</option>
+                            <option value="20RF">20' Refrigerated</option>
+                            <option value="40RF">40' Refrigerated</option>
+                            <option value="20OT">20' Open Top</option>
+                            <option value="40OT">40' Open Top</option>
+                            <option value="20FR">20' Flat Rack</option>
+                            <option value="40FR">40' Flat Rack</option>
+                        </select>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h6>Initial Status (Optional)</h6>
+                    
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="">-- No Initial Status --</option>
+                            <option value="loaded">Loaded</option>
+                            <option value="discharged">Discharged</option>
+                            <option value="emptied">Emptied</option>
+                            <option value="full">Full</option>
+                            <option value="in_transit">In Transit</option>
+                            <option value="customs_hold">Customs Hold</option>
+                            <option value="ready_for_pickup">Ready for Pickup</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="loading_port" class="form-label">Loading Port</label>
+                        <input type="text" class="form-control" id="loading_port" name="loading_port">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="vessel_id" class="form-label">Vessel</label>
+                        <select class="form-select" id="vessel_id" name="vessel_id">
+                            <option value="">-- Select Vessel --</option>
+                            {% for vessel in vessels %}
+                            <option value="{{ vessel.id }}">{{ vessel.name }} (IMO: {{ vessel.imo_number }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="final_destination" class="form-label">Final Destination</label>
+                        <input type="text" class="form-control" id="final_destination" name="final_destination">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="opr" class="form-label">OPR</label>
+                        <input type="text" class="form-control" id="opr" name="opr">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="arrival_date" class="form-label">Arrival Date</label>
+                        <input type="date" class="form-control" id="arrival_date" name="arrival_date">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="bl_number" class="form-label">BL Number</label>
+                        <input type="text" class="form-control" id="bl_number" name="bl_number">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="stripping_date" class="form-label">Stripping Date</label>
+                        <input type="date" class="form-control" id="stripping_date" name="stripping_date">
+                        <small class="form-text text-muted">Date when container will be/was unloaded/stripped. Automatically set when discharged from vessel.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="date" name="date" value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="location" name="location">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        <small class="form-text text-muted">Notes will be auto-generated for certain status types if left blank.</small>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">Add Container</button>
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary ms-2">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-file-import me-2"></i> Bulk Import Containers</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" action="{{ url_for('add_container') }}">
+                    <p>Upload an Excel file (.xlsx, .xls) or CSV file (.csv) containing container information.</p>
+                    
+                    <div class="card mb-3">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0 d-flex justify-content-between align-items-center">
+                                Required Column Information
+                                <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#columnInfoCollapse" aria-expanded="false" aria-controls="columnInfoCollapse">
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                            </h6>
+                        </div>
+                        <div class="collapse" id="columnInfoCollapse">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-header bg-warning">
+                                                <strong>Required Columns</strong>
+                                            </div>
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item"><code>container_number</code> - The container identification number</li>
+                                                <li class="list-group-item"><code>container_type</code> - Type of container (20GP, 40HC, etc.)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-header bg-secondary text-white">
+                                                <strong>Optional Columns</strong>
+                                            </div>
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item"><code>loading_port</code> - Port of loading</li>
+                                                <li class="list-group-item"><code>final_destination</code> - Final destination of container</li>
+                                                <li class="list-group-item"><code>opr</code> - OPR information</li>
+                                                <li class="list-group-item"><code>arrival_date</code> - Expected arrival date (YYYY-MM-DD)</li>
+                                                <li class="list-group-item"><code>bl_number</code> - Bill of Lading number</li>
+                                                <li class="list-group-item"><code>vessel</code> - Name of the vessel transporting the container</li>
+                                                <li class="list-group-item"><code>stripping_date</code> - Date when container is expected to be unloaded/stripped (automatically set when discharged from vessel)</li>
+                                                <li class="list-group-item"><code>status</code> - Current status (loaded, discharged, emptied, full)</li>
+                                                <li class="list-group-item"><code>date</code> - Date of status (YYYY-MM-DD)</li>
+                                                <li class="list-group-item"><code>location</code> - Current container location</li>
+                                                <li class="list-group-item"><code>notes</code> - Additional notes</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <input type="file" class="form-control" name="file" accept=".xlsx,.xls,.csv" required>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i> Upload and Import
+                            </button>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('download_template') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-download me-2"></i> Download Template
+                            </a>
+                            <a href="{{ url_for('import_guide') }}" target="_blank" class="btn btn-outline-info ms-2">
+                                <i class="fas fa-book me-2"></i> View Import Guide
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
