@@ -13,6 +13,7 @@ from werkzeug.urls import url_parse
 import flask  # Import flask module to access version information
 import sqlalchemy  # Import sqlalchemy module to access version information
 from dotenv import load_dotenv
+from sqlalchemy.exc import OperationalError
 
 # Load environment variables from .env file
 load_dotenv()
