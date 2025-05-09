@@ -8,6 +8,9 @@ gunicorn==21.2.0
 python-dotenv==1.0.0
 psycopg2-binary==2.9.7
 
+# Fix numpy version to prevent binary incompatibility errors
+numpy==1.24.3
+
 # Fix versions to ensure compatibility
 pandas==2.1.0
 openpyxl==3.1.2
