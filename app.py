@@ -147,7 +147,7 @@ class Container(db.Model):
     def get_current_vessel(self):
         """Helper method to directly get the vessel (if any) associated with this container"""
         current_location = self.get_current_location()
-        if current_location and current_location['type'] == 'vessel':
+        if (current_location and current_location['type'] == 'vessel'):
             return current_location['vessel']
         return None
         
@@ -1417,15 +1417,16 @@ def load_container(id):
             return redirect(url_for('load_container', id=id))
         
         try:
-            # CHANGE: Don't delete print history anymore, only revoke current authorizations
-            # Keep delivery order print history for auditing and tracking
+            # CHANGE: Don't delete print history anymore at all
+            # MODIFIED: Only revoke active authorizations but keep print history intact
             
             # Only delete any related print authorizations and requests since they're no longer valid
+            # but keep the print history records
             PrintAuthorization.query.filter_by(container_id=id).delete()
             PrintAccessRequest.query.filter_by(container_id=id).delete()
             
             db.session.commit()
-            print(f"Revoked authorizations for container {id} as it's being loaded onto vessel")
+            logger.info(f"Revoked authorizations for container {id} as it's being loaded onto vessel, but kept delivery order history")
             
             # Continue with the existing load container logic
             
@@ -1451,7 +1452,7 @@ def load_container(id):
             db.session.add(status)
             db.session.commit()
             
-            flash(f'Container successfully loaded onto {vessel.name}. Print authorizations have been revoked.', 'success')
+            flash(f'Container successfully loaded onto {vessel.name}. Print authorizations have been revoked but delivery order history is preserved.', 'success')
             return redirect(url_for('container_detail', id=container.id))
             
         except Exception as e:
@@ -2606,19 +2607,33 @@ def confirm_delivery_print():
         if not do_number:
             return jsonify({'success': False, 'error': 'Delivery Order Number is required'}), 400
         
-        # Get the container to verify it exists and user is authorized
+        # Get the container to verify it exists
         container = Container.query.get_or_404(container_id)
+        
+        # Find active authorization for this user and container, if any
+        authorization = PrintAuthorization.query.filter_by(
+            container_id=container_id,
+            user_id=current_user.id,
+            used=False
+        ).first()
         
         # Create a new print record
         print_record = PrintHistory(
             container_id=container_id,
             user_id=current_user.id,
             print_date=datetime.utcnow(),
-            do_number=do_number,  # Ensure this is not None
-            authorized_by_id=None  # This might be set to an admin ID for reprints
+            do_number=do_number,
+            # Set authorized_by_id from the authorization if one exists
+            authorized_by_id=authorization.authorized_by_id if authorization else None
         )
         
         db.session.add(print_record)
+        
+        # Mark the authorization as used if one was found
+        if authorization:
+            authorization.used = True
+            logger.info(f"Authorization {authorization.id} marked as used after printing by {current_user.username}")
+        
         db.session.commit()
         
         return jsonify({
@@ -2629,6 +2644,7 @@ def confirm_delivery_print():
         
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Error confirming delivery print: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Add API endpoint to get the current counter
@@ -2870,6 +2886,7 @@ def admin_delivery_orders():
     containers_with_prints = print_history_query.with_entities(PrintHistory.container_id).distinct().subquery()
     
     # Get all containers that have print history matching our filters
+    # CHANGE: Show ALL containers with print history, regardless of current status
     containers = Container.query.filter(Container.id.in_(containers_with_prints)).all()
     
     # For each container, get its print history (with date filter)
@@ -2894,19 +2911,26 @@ def admin_delivery_orders():
         
         total_prints += len(prints)
         
-        # Get vessel information from discharge movement
-        discharge_movement = ContainerMovement.query.filter_by(
-            container_id=container.id, 
-            operation_type='discharge'
-        ).order_by(ContainerMovement.operation_date.desc()).first()
-        
-        vessel_name = "Unknown"
-        voyage_number = "Unknown"
-        if discharge_movement:
-            vessel = Vessel.query.get(discharge_movement.vessel_id)
-            if vessel:
-                vessel_name = vessel.name
-                voyage_number = vessel.imo_number
+        # Get vessel information - check if currently on vessel first
+        current_location = container.get_current_location()
+        if current_location and current_location['type'] == 'vessel':
+            vessel = current_location['vessel']
+            vessel_name = vessel.name
+            voyage_number = vessel.imo_number
+        else:
+            # If not currently on vessel, check discharge movement
+            discharge_movement = ContainerMovement.query.filter_by(
+                container_id=container.id, 
+                operation_type='discharge'
+            ).order_by(ContainerMovement.operation_date.desc()).first()
+            
+            vessel_name = "Unknown"
+            voyage_number = "Unknown"
+            if discharge_movement:
+                vessel = Vessel.query.get(discharge_movement.vessel_id)
+                if vessel:
+                    vessel_name = vessel.name
+                    voyage_number = vessel.imo_number
         
         container_print_data.append({
             'container': container,

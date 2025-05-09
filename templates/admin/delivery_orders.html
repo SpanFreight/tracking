@@ -107,6 +107,9 @@
                                         <i class="fas fa-ship me-1"></i> On Vessel
                                         {{ current_location.vessel.name }}
                                     </span>
+                                    <span class="badge bg-warning ms-1" title="Container is currently loaded on a vessel">
+                                        <i class="fas fa-exclamation-triangle me-1"></i> Not Discharged
+                                    </span>
                                 {% elif current_status %}
                                     <span class="badge bg-{{ 'success' if current_status.status == 'discharged' else 'secondary' }}">
                                         {{ current_status.status|title }}
