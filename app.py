@@ -369,55 +369,72 @@ def index():
     sort_by = request.args.get('sort', 'created_at')  # Default sort by creation date
     sort_order = request.args.get('order', 'desc')    # Default to descending order
     
+    # Get search parameter
+    search_term = request.args.get('search', '').strip()
+    
     # Get page parameter with default value of 1
     page = request.args.get('page', 1, type=int)
     per_page = 25  # Show 25 containers per page
     
-    # Special case for sorting by status since it's in a related table
-    if sort_by == 'status':
-        # We need to create a subquery to get the latest status for each container
-        latest_status_subquery = db.session.query(
-            ContainerStatus.container_id,
-            db.func.max(ContainerStatus.created_at).label('max_date')
-        ).group_by(ContainerStatus.container_id).subquery('latest_status')
-        
-        # Join with the main container table and the latest status
-        query = db.session.query(Container, ContainerStatus.status)\
-            .outerjoin(latest_status_subquery, Container.id == latest_status_subquery.c.container_id)\
-            .outerjoin(ContainerStatus, db.and_(
-                ContainerStatus.container_id == latest_status_subquery.c.container_id,
-                ContainerStatus.created_at == latest_status_subquery.c.max_date
-            ))
-            
-        # Apply sorting
-        if sort_order == 'asc':
-            query = query.order_by(db.asc(ContainerStatus.status), db.asc(Container.container_number))
-        else:
-            query = query.order_by(db.desc(ContainerStatus.status), db.desc(Container.container_number))
-            
-        # Execute the query and extract containers
-        all_containers_query = [container for container, _ in query.all()]
+    # Start with a base query for all containers
+    # If search term provided, filter containers by container number (case insensitive)
+    if search_term:
+        # Search by container number, type, BL number, vessel name, etc.
+        all_containers_query = Container.query.filter(
+            db.or_(
+                Container.container_number.ilike(f'%{search_term}%'),
+                Container.container_type.ilike(f'%{search_term}%'),
+                Container.bl_number.ilike(f'%{search_term}%'),
+                Container.opr.ilike(f'%{search_term}%')
+            )
+        )
     else:
-        # For other sort fields, use the standard approach
-        if sort_by == 'container_number':
-            if sort_order == 'desc':
-                all_containers_query = Container.query.order_by(Container.container_number.desc())
-            else:
-                all_containers_query = Container.query.order_by(Container.container_number)
-        elif sort_by == 'container_type':
-            if sort_order == 'desc':
-                all_containers_query = Container.query.order_by(Container.container_type.desc())
-            else:
-                all_containers_query = Container.query.order_by(Container.container_type)
-        else:  # Default to created_at
-            if sort_order == 'desc':
-                all_containers_query = Container.query.order_by(Container.created_at.desc())
-            else:
-                all_containers_query = Container.query.order_by(Container.created_at)
+        # Special case for sorting by status since it's in a related table
+        if sort_by == 'status':
+            # We need to create a subquery to get the latest status for each container
+            latest_status_subquery = db.session.query(
+                ContainerStatus.container_id,
+                db.func.max(ContainerStatus.created_at).label('max_date')
+            ).group_by(ContainerStatus.container_id).subquery('latest_status')
+            
+            # Join with the main container table and the latest status
+            query = db.session.query(Container, ContainerStatus.status)\
+                .outerjoin(latest_status_subquery, Container.id == latest_status_subquery.c.container_id)\
+                .outerjoin(ContainerStatus, db.and_(
+                    ContainerStatus.container_id == latest_status_subquery.c.container_id,
+                    ContainerStatus.created_at == latest_status_subquery.c.max_date
+                ))
                 
-        # If we didn't special case for status, we need to execute the query
-        all_containers_query = all_containers_query.all()
+            # Apply sorting
+            if sort_order == 'asc':
+                query = query.order_by(db.asc(ContainerStatus.status), db.asc(Container.container_number))
+            else:
+                query = query.order_by(db.desc(ContainerStatus.status), db.desc(Container.container_number))
+                
+            # Execute the query and extract containers
+            all_containers_query = [container for container, _ in query.all()]
+        else:
+            # For other sort fields, use the standard approach
+            if sort_by == 'container_number':
+                if sort_order == 'desc':
+                    all_containers_query = Container.query.order_by(Container.container_number.desc())
+                else:
+                    all_containers_query = Container.query.order_by(Container.container_number)
+            elif sort_by == 'container_type':
+                if sort_order == 'desc':
+                    all_containers_query = Container.query.order_by(Container.container_type.desc())
+                else:
+                    all_containers_query = Container.query.order_by(Container.container_type)
+            else:  # Default to created_at
+                if sort_order == 'desc':
+                    all_containers_query = Container.query.order_by(Container.created_at.desc())
+                else:
+                    all_containers_query = Container.query.order_by(Container.created_at)
+                
+            # If we didn't special case for status, we need to execute the query
+            all_containers_query = all_containers_query.all()
     
+    # Further processing of containers (filtering by location, etc.)
     # Get containers that aren't on departed vessels
     all_containers = []
     for container in all_containers_query:
@@ -453,9 +470,10 @@ def index():
     
     # Apply pagination to the filtered containers list
     pagination = Pagination(containers, page, per_page, 'index', 
-                            location=location_filter, 
-                            sort=sort_by, 
-                            order=sort_order)
+                           location=location_filter, 
+                           sort=sort_by, 
+                           order=sort_order,
+                           search=search_term)  # Pass search term to pagination for URL generation
     containers = pagination.items  # Use the paginated items
     
     # Get vessels for the page
@@ -504,7 +522,8 @@ def index():
                           discharged_count=discharged_count,
                           sort_by=sort_by,  # Pass sorting parameters to template
                           sort_order=sort_order,
-                          pagination=pagination)  # Pass pagination to template
+                          pagination=pagination,
+                          search_term=search_term)  # Pass search term to template
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
