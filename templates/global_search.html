@@ -1,0 +1,66 @@
+<div class="global-search-container">
+  <form id="globalSearchForm" class="form-inline my-2 my-lg-0 ml-auto" method="GET" action="{{ url_for('index') }}">
+    <div class="input-group">
+      <input id="globalSearchInput" class="form-control" type="search" 
+             placeholder="Search containers..." aria-label="Search" 
+             name="search" autocomplete="off">
+      <div class="input-group-append">
+        <button class="btn btn-outline-primary" type="submit">
+          <i class="fas fa-search"></i>
+        </button>
+      </div>
+    </div>
+  </form>
+  <div id="globalSearchResults" class="dropdown-menu search-results-dropdown"></div>
+</div>
+
+<script>
+$(document).ready(function() {
+  $('#globalSearchInput').on('keyup', function() {
+    const query = $(this).val().trim();
+    if (query.length >= 2) {
+      $.get('/api/search-containers/' + encodeURIComponent(query))
+        .done(function(data) {
+          const resultsDiv = $('#globalSearchResults');
+          resultsDiv.empty();
+          
+          if (data.length > 0) {
+            data.forEach(function(item) {
+              resultsDiv.append(
+                `<a class="dropdown-item" href="/container/${item.id}">
+                   <strong>${item.container_number}</strong> - ${item.container_type}
+                   ${item.bl_number ? `<small class="text-muted">(BL: ${item.bl_number})</small>` : ''}
+                 </a>`
+              );
+            });
+            resultsDiv.show();
+          } else {
+            resultsDiv.append('<span class="dropdown-item disabled">No matches found</span>');
+            resultsDiv.show();
+          }
+        });
+    } else {
+      $('#globalSearchResults').hide();
+    }
+  });
+
+  // Hide search results when clicking outside
+  $(document).on('click', function(e) {
+    if (!$(e.target).closest('.global-search-container').length) {
+      $('#globalSearchResults').hide();
+    }
+  });
+});
+</script>
+
+<style>
+.global-search-container {
+  position: relative;
+  margin-right: 1rem;
+}
+.search-results-dropdown {
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+}
+</style>
