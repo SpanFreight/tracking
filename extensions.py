@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 # Configure SQLAlchemy with optimized settings for render.com
 db = SQLAlchemy(engine_options={
-    'pool_size': 10,  # Reduce from default to save memory
-    'max_overflow': 20,
-    'pool_timeout': 30,  # Faster timeout for connection acquisition
+    'pool_size': 5,  # Reduce from default to save memory
+    'max_overflow': 10,
+    'pool_timeout': 30,
     'pool_recycle': 1800,  # Recycle connections every 30 minutes
     'pool_pre_ping': True  # Check connection validity before using it
 })
@@ -30,24 +30,18 @@ def configure_app_for_render(app):
     # Log that we're configuring for Render
     logger.info("Configuring application for Render.com environment")
     
-    # Set memory limits for gunicorn workers
-    if 'RENDER' in os.environ:
-        # Allow up to 512MB for memory-intensive operations
-        app.config['MAX_CONTENT_LENGTH'] = 512 * 1024 * 1024
-        
-        # Disable some memory-intensive features when on render.com
-        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-        
-        # Set smaller chunk size for file operations
-        app.config['UPLOAD_CHUNK_SIZE'] = 4096  # 4KB chunks
-        
-        # Set shorter timeouts for external services
-        app.config['SERVICE_TIMEOUT'] = 25  # 25 seconds timeout
-        
-        # Add reasonable pagination limits
-        app.config['DEFAULT_PAGE_SIZE'] = 25
-        app.config['MAX_PAGE_SIZE'] = 100
-        
-        logger.info("Render.com configuration applied")
+    # Set memory-saving options
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['TEMPLATES_AUTO_RELOAD'] = False
+    app.config['PRESERVE_CONTEXT_ON_EXCEPTION'] = False
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+    
+    # Set SQLAlchemy options for better memory usage
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 5,
+        'max_overflow': 10,
+        'pool_recycle': 1800,
+        'pool_pre_ping': True
+    }
     
     return app
