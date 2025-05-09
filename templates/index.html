@@ -278,6 +278,21 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination links -->
+        <div class="pagination">
+          {% if pagination.has_prev %}
+            <a href="{{ pagination.get_url(pagination.prev_page) }}" class="btn btn-outline-primary">&laquo; Previous</a>
+          {% endif %}
+          
+          <span class="current-page">
+            Page {{ pagination.page }} of {{ pagination.pages }}
+          </span>
+          
+          {% if pagination.has_next %}
+            <a href="{{ pagination.get_url(pagination.next_page) }}" class="btn btn-outline-primary">Next &raquo;</a>
+          {% endif %}
+        </div>
     </div>
 </div>
 
@@ -950,9 +965,6 @@
                     
                     // Refresh the page
                     window.location.reload();
-                },
-                error: function(xhr) {
-                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not process status update'));
                 }
             });
         });

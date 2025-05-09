@@ -14,6 +14,7 @@ import flask  # Import flask module to access version information
 import sqlalchemy  # Import sqlalchemy module to access version information
 from dotenv import load_dotenv
 from sqlalchemy.exc import OperationalError
+from render_optimizations import optimize_for_render
 
 # Remove the circular import
 # from models import DeliveryPrint  <- DELETE THIS LINE
