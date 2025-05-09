@@ -15,6 +15,9 @@ import sqlalchemy  # Import sqlalchemy module to access version information
 from dotenv import load_dotenv
 from sqlalchemy.exc import OperationalError
 
+# Remove the circular import
+# from models import DeliveryPrint  <- DELETE THIS LINE
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -70,6 +73,9 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
 login_manager.login_message = 'Please log in to access this page.'  # Add a friendly login message
+
+# Now import models after db is initialized to avoid circular imports
+from models import Container, ContainerStatus, Vessel, ContainerMovement, User, PrintHistory, PrintAuthorization, PrintAccessRequest, DeliveryCounter
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1411,19 +1417,15 @@ def load_container(id):
             return redirect(url_for('load_container', id=id))
         
         try:
-            # Delete any print history when container is loaded onto vessel
-            # Use the correct model name - PrintHistory instead of DeliveryOrderPrint
-            print_records = PrintHistory.query.filter_by(container_id=id).all()
-            if print_records:
-                for print_record in print_records:
-                    db.session.delete(print_record)
-                
-                # Also delete any related print authorizations and requests
-                PrintAuthorization.query.filter_by(container_id=id).delete()
-                PrintAccessRequest.query.filter_by(container_id=id).delete()
-                
-                db.session.commit()
-                print(f"Deleted print history for container {id} as it's being loaded onto vessel")
+            # CHANGE: Don't delete print history anymore, only revoke current authorizations
+            # Keep delivery order print history for auditing and tracking
+            
+            # Only delete any related print authorizations and requests since they're no longer valid
+            PrintAuthorization.query.filter_by(container_id=id).delete()
+            PrintAccessRequest.query.filter_by(container_id=id).delete()
+            
+            db.session.commit()
+            print(f"Revoked authorizations for container {id} as it's being loaded onto vessel")
             
             # Continue with the existing load container logic
             
@@ -1449,7 +1451,7 @@ def load_container(id):
             db.session.add(status)
             db.session.commit()
             
-            flash(f'Container successfully loaded onto {vessel.name}. Any previous delivery order history has been cleared.', 'success')
+            flash(f'Container successfully loaded onto {vessel.name}. Print authorizations have been revoked.', 'success')
             return redirect(url_for('container_detail', id=container.id))
             
         except Exception as e:
@@ -1971,15 +1973,45 @@ def admin_system():
             return redirect(url_for('admin_system'))
         
         if action == 'create_backup':
-            success, result = create_backup()
-            if success:
-                flash(f'Backup created successfully: {os.path.basename(result)}', 'success')
-            else:
-                flash(f'Error creating backup: {result}', 'danger')
-            
-            return redirect(url_for('admin_system'))
-        
-        if action == 'clear_logs':
+            try:
+                # Use app context to ensure proper path resolution
+                with app.app_context():
+                    # Import locate_database function from fix_db
+                    try:
+                        from fix_db import locate_database
+                        db_path = locate_database()
+                    except ImportError:
+                        # If function not available, fall back to default path resolution
+                        if db_uri.startswith('sqlite:///'):
+                            db_path = db_uri.replace('sqlite:///', '')
+                            if not os.path.isabs(db_path):
+                                db_path = os.path.join(app.root_path, db_path)
+                        else:
+                            raise ValueError("Only SQLite databases are supported for backup")
+                    # Check if database file actually exists at this location
+                    if not os.path.exists(db_path) or not os.path.isfile(db_path):
+                        # Try the simplest possible path as a last resort
+                        fallback_path = 'container_tracking.db'
+                        if (os.path.exists(fallback_path)):
+                            db_path = os.path.abspath(fallback_path)
+                            logger.info(f"Using fallback database path: {db_path}")
+                        else:
+                            raise FileNotFoundError(f"Database file not found: {db_path}")
+                # Create backup directory and copy file
+                backup_path = os.path.join(app.root_path, 'backups')
+                os.makedirs(backup_path, exist_ok=True)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_file = os.path.join(backup_path, f'database_backup_{timestamp}.db')
+                
+                import shutil
+                shutil.copy2(db_path, backup_file)
+                logger.info(f"Created backup at {backup_file}")
+                
+                flash(f'Database backup created successfully: {os.path.basename(backup_file)}', 'success')
+            except Exception as e:
+                flash(f'Error creating backup: {str(e)}', 'danger')
+                logger.error(f"Backup error: {str(e)}")
+        elif action == 'clear_logs':
             try:
                 # Clear log files (example implementation)
                 log_dir = os.path.join(app.root_path, 'logs')
@@ -2148,46 +2180,51 @@ def admin_diagnostics():
 @app.route('/admin/reset-db', methods=['POST'])
 @login_required
 def admin_reset_db():
-    """Admin endpoint to reset the database while preserving admin users"""
-    if not current_user.is_admin:
-        flash('You do not have permission to perform this action.', 'danger')
-        return redirect(url_for('index'))
+    """Reset the database but keep admin account without creating a backup"""
+    # Get the confirmation text
+    confirm = request.form.get('confirm', '')
     
-    confirmation = request.form.get('confirm')
-    if confirmation != 'RESET':
-        flash('Invalid confirmation. Database reset aborted.', 'danger')
+    if confirm != 'RESET':
+        flash('Please type RESET to confirm database reset', 'danger')
         return redirect(url_for('admin_system'))
     
     try:
-        # Import reset_database_clean and locate_database from fix_db
-        from fix_db import reset_database_clean, locate_database
+        # Store the current admin user information
+        admin_users = User.query.filter_by(is_admin=True).all()
+        admin_data = []
+        for admin in admin_users:
+            admin_data.append({
+                'username': admin.username,
+                'email': admin.email,
+                'password_hash': admin.password_hash,  # Save the hashed password
+                'is_admin': True
+            })
         
-        # Try to locate the database for backup
-        db_path = locate_database()
+        # Drop all tables
+        db.drop_all()
         
-        # Create backup before resetting if database exists
-        if db_path and os.path.exists(db_path):
-            backup_path = os.path.join(app.root_path, 'backups')
-            os.makedirs(backup_path, exist_ok=True)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_file = os.path.join(backup_path, f'pre_reset_backup_{timestamp}.db')
-            
-            import shutil
-            shutil.copy2(db_path, backup_file)
-            logger.info(f"Created backup at {backup_file}")
+        # Create new tables
+        db.create_all()
         
-        # Reset database using the specialized function
-        with app.app_context():
-            success = reset_database_clean()
-        if success:
-            flash('Database has been reset successfully while preserving admin users!', 'success')
-        else:
-            flash('Failed to reset database. See server logs for details.', 'danger')
+        # Recreate the admin accounts
+        for admin in admin_data:
+            admin_user = User(
+                username=admin['username'],
+                email=admin['email'],
+                password_hash=admin['password_hash'],  # Reuse the hashed password
+                is_admin=admin['is_admin']
+            )
+            db.session.add(admin_user)
+        
+        # Commit changes
+        db.session.commit()
+        
     except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error resetting database: {str(e)}")
         flash(f'Error resetting database: {str(e)}', 'danger')
-        logger.error(f"Database reset error: {str(e)}")
     
-    return redirect(url_for('admin_system'))
+    return redirect(url_for('logout'))
 
 @app.route('/containers/bulk-status-update', methods=['POST'])
 @login_required
@@ -2790,81 +2827,112 @@ def search_containers_for_delivery(search_term):
     
     return jsonify(result)
 
-def create_backup():
-    """Create a backup of the database file"""
-    try:
-        # Determine the backup directory path based on environment
-        if os.environ.get('RENDER') or '/opt/render' in os.getcwd():
-            # We're on Render.com
-            backup_dir = os.path.join('/opt/render/project/src', 'backups')
-        else:
-            # Local development environment
-            backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups')
-        
-        # Create the backup directory if it doesn't exist
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir)
-            app.logger.info(f"Created backup directory: {backup_dir}")
-        
-        # Create backup filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # Get database path from config, handling both SQLite file path and URL formats
-        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        if db_uri.startswith('sqlite:///'):
-            # Handle relative SQLite path
-            db_path = db_uri.replace('sqlite:///', '')
-            if not os.path.isabs(db_path):
-                # If relative, make it absolute from the app directory
-                db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_path)
-        else:
-            # For other databases or custom configurations
-            app.logger.warning(f"Non-SQLite database URI detected: {db_uri}")
-            return False, "Backup only supported for SQLite databases"
-        
-        # Ensure source database file exists
-        if not os.path.exists(db_path):
-            app.logger.error(f"Database file not found: {db_path}")
-            return False, f"Database file not found: {db_path}"
-        
-        backup_filename = f'backup_{timestamp}.db'
-        backup_path = os.path.join(backup_dir, backup_filename)
-        
-        # Copy the database file
-        try:
-            shutil.copy2(db_path, backup_path)
-            app.logger.info(f"Backup created successfully: {backup_path}")
-            return True, backup_path
-        except Exception as e:
-            app.logger.error(f"Error copying database file: {str(e)}")
-            return False, f"Error copying database file: {str(e)}"
-    except Exception as e:
-        app.logger.error(f"Error creating backup: {str(e)}")
-        return False, str(e)
-
-@app.route('/admin/create-backup-dir', methods=['POST'])
+@app.route('/admin/delivery-orders')
 @login_required
-def admin_create_backup_dir():
-    """Endpoint to create backups directory"""
-    try:
-        # Determine backup directory based on environment
-        if os.environ.get('RENDER') or '/opt/render' in os.getcwd():
-            backup_dir = os.path.join('/opt/render/project/src', 'backups')
-        else:
-            backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups')
+def admin_delivery_orders():
+    """Admin page to view history of delivery orders printed, grouped by container"""
+    if not current_user.is_admin:
+        flash('You do not have permission to access this page.', 'danger')
+        return redirect(url_for('index'))
+    
+    # Get date range from query parameters
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    
+    # Parse dates if provided
+    start_date = None
+    end_date = None
+    
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        except ValueError:
+            flash('Invalid start date format', 'warning')
+    
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+            # Set end date to end of day for inclusive filtering
+            end_date = end_date.replace(hour=23, minute=59, second=59)
+        except ValueError:
+            flash('Invalid end date format', 'warning')
+    
+    # Base query for print history - apply date filtering if parameters provided
+    print_history_query = PrintHistory.query
+    
+    if start_date:
+        print_history_query = print_history_query.filter(PrintHistory.print_date >= start_date)
+    
+    if end_date:
+        print_history_query = print_history_query.filter(PrintHistory.print_date <= end_date)
+    
+    # Get distinct container IDs with print history (after date filtering)
+    containers_with_prints = print_history_query.with_entities(PrintHistory.container_id).distinct().subquery()
+    
+    # Get all containers that have print history matching our filters
+    containers = Container.query.filter(Container.id.in_(containers_with_prints)).all()
+    
+    # For each container, get its print history (with date filter)
+    container_print_data = []
+    total_prints = 0
+    
+    for container in containers:
+        # Get print history for this container with date filtering
+        prints_query = PrintHistory.query.filter_by(container_id=container.id)
         
-        # Create the directory if it doesn't exist
-        if not os.path.exists(backup_dir):
-            os.makedirs(backup_dir)
-            flash(f'Successfully created backup directory: {backup_dir}', 'success')
-        else:
-            flash(f'Backup directory already exists: {backup_dir}', 'info')
+        if start_date:
+            prints_query = prints_query.filter(PrintHistory.print_date >= start_date)
         
-        # Return to the diagnostics page
-        return redirect(url_for('admin_diagnostics'))
-    except Exception as e:
-        flash(f'Error creating backup directory: {str(e)}', 'danger')
-        return redirect(url_for('admin_diagnostics'))
+        if end_date:
+            prints_query = prints_query.filter(PrintHistory.print_date <= end_date)
+        
+        prints = prints_query.order_by(PrintHistory.print_date.desc()).all()
+        
+        # If no prints match our filter after all, skip this container
+        if not prints:
+            continue
+        
+        total_prints += len(prints)
+        
+        # Get vessel information from discharge movement
+        discharge_movement = ContainerMovement.query.filter_by(
+            container_id=container.id, 
+            operation_type='discharge'
+        ).order_by(ContainerMovement.operation_date.desc()).first()
+        
+        vessel_name = "Unknown"
+        voyage_number = "Unknown"
+        if discharge_movement:
+            vessel = Vessel.query.get(discharge_movement.vessel_id)
+            if vessel:
+                vessel_name = vessel.name
+                voyage_number = vessel.imo_number
+        
+        container_print_data.append({
+            'container': container,
+            'print_count': len(prints),  # Only count prints that match our filter
+            'first_print': prints[-1] if prints else None,  # Earliest print
+            'latest_print': prints[0] if prints else None,  # Most recent print
+            'all_prints': prints,  # Only prints that match our filter
+            'vessel_name': vessel_name,
+            'voyage_number': voyage_number,
+            'bl_number': container.bl_number or 'N/A'
+        })
+    
+    # Sort by most recent print date
+    container_print_data.sort(
+        key=lambda x: x['latest_print'].print_date if x['latest_print'] else datetime.min,
+        reverse=True
+    )
+    
+    return render_template(
+        'admin/delivery_orders.html',
+        container_print_data=container_print_data,
+        start_date=start_date_str,
+        end_date=end_date_str,
+        total_containers=len(container_print_data),
+        total_prints=total_prints
+    )
 
 if __name__ == '__main__':
     with app.app_context():
