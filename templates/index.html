@@ -279,20 +279,10 @@
             </table>
         </div>
         
-        <!-- Pagination links -->
-        <div class="pagination">
-          {% if pagination.has_prev %}
-            <a href="{{ pagination.get_url(pagination.prev_page) }}" class="btn btn-outline-primary">&laquo; Previous</a>
-          {% endif %}
-          
-          <span class="current-page">
-            Page {{ pagination.page }} of {{ pagination.pages }}
-          </span>
-          
-          {% if pagination.has_next %}
-            <a href="{{ pagination.get_url(pagination.next_page) }}" class="btn btn-outline-primary">Next &raquo;</a>
-          {% endif %}
-        </div>
+        <!-- Centered pagination controls -->
+        {% if pagination.pages > 1 %}
+          {% include 'includes/pagination.html' %}
+        {% endif %}
     </div>
 </div>
 
