@@ -1,9 +1,10 @@
-from app import app
+from app import app as application
 
-# Simple health check endpoint that responds quickly
-@app.route('/health')
+# Add a simple health check endpoint
+@application.route('/health')
 def health_check():
     return 'OK', 200
 
+# This allows the file to be run directly during development
 if __name__ == "__main__":
-    app.run()
+    application.run()
