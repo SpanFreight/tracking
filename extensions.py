@@ -1,9 +1,13 @@
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
-from flask_bcrypt import Bcrypt
+from werkzeug.security import generate_password_hash, check_password_hash
 
-# Initialize extensions without binding them to app
+# Initialize SQLAlchemy
 db = SQLAlchemy()
-login_manager = LoginManager()
-login_manager.login_view = 'login'
-bcrypt = Bcrypt()
+
+# Function to generate password hash
+def generate_password_hash_ext(password):
+    return generate_password_hash(password)
+
+# Function to check password hash
+def check_password_hash_ext(password_hash, password):
+    return check_password_hash(password_hash, password)
