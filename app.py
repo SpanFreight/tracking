@@ -352,6 +352,8 @@ def map_location_codes(location):
     }
     return location_mapping.get(location, location)
 
+from pagination import Pagination
+
 @app.route('/')
 @login_required
 def index():
@@ -366,6 +368,10 @@ def index():
     # Get sorting parameters from the request
     sort_by = request.args.get('sort', 'created_at')  # Default sort by creation date
     sort_order = request.args.get('order', 'desc')    # Default to descending order
+    
+    # Get page parameter with default value of 1
+    page = request.args.get('page', 1, type=int)
+    per_page = 25  # Show 25 containers per page
     
     # Special case for sorting by status since it's in a related table
     if sort_by == 'status':
@@ -445,6 +451,13 @@ def index():
     else:
         containers = all_containers
     
+    # Apply pagination to the filtered containers list
+    pagination = Pagination(containers, page, per_page, 'index', 
+                            location=location_filter, 
+                            sort=sort_by, 
+                            order=sort_order)
+    containers = pagination.items  # Use the paginated items
+    
     # Get vessels for the page
     vessels = Vessel.query.all()
     now = datetime.now()
@@ -490,7 +503,8 @@ def index():
                           loaded_count=loaded_count,
                           discharged_count=discharged_count,
                           sort_by=sort_by,  # Pass sorting parameters to template
-                          sort_order=sort_order)
+                          sort_order=sort_order,
+                          pagination=pagination)  # Pass pagination to template
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
