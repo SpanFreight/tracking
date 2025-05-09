@@ -8,7 +8,7 @@
         <div class="card bg-primary text-white">
             <div class="card-body">
                 <h5 class="card-title">Total Containers</h5>
-                <h2 class="card-text">{{ containers|length }}</h2>
+                <h2 class="card-text">{{ total_container_count }}</h2>
             </div>
         </div>
     </div>
@@ -16,7 +16,7 @@
         <div class="card bg-success text-white">
             <div class="card-body">
                 <h5 class="card-title">Loaded Containers</h5>
-                <h2 class="card-text">{{ loaded_count }}</h2>
+                <h2 class="card-text">{{ total_loaded_count }}</h2>
             </div>
         </div>
     </div>
@@ -24,7 +24,7 @@
         <div class="card bg-warning text-dark">
             <div class="card-body">
                 <h5 class="card-title">Discharged Containers</h5>
-                <h2 class="card-text">{{ discharged_count }}</h2>
+                <h2 class="card-text">{{ total_discharged_count }}</h2>
             </div>
         </div>
     </div>

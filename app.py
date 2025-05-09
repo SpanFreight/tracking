@@ -510,6 +510,36 @@ def index():
         # Use the get_current_vessel helper to ensure vessel information is populated
         container.current_vessel = container.get_current_vessel()
     
+    # Calculate total statistics for the entire database
+    # Get total containers count
+    total_container_count = Container.query.count()
+    
+    # Get total loaded containers count using subquery to find latest status
+    latest_status_subquery = db.session.query(
+        ContainerStatus.container_id,
+        db.func.max(ContainerStatus.created_at).label('max_date')
+    ).group_by(ContainerStatus.container_id).subquery()
+    
+    # Query for loaded containers count
+    total_loaded_count = db.session.query(Container)\
+        .join(latest_status_subquery, Container.id == latest_status_subquery.c.container_id)\
+        .join(ContainerStatus, db.and_(
+            ContainerStatus.container_id == latest_status_subquery.c.container_id,
+            ContainerStatus.created_at == latest_status_subquery.c.max_date,
+            ContainerStatus.status == 'loaded'
+        ))\
+        .count()
+        
+    # Query for discharged containers count
+    total_discharged_count = db.session.query(Container)\
+        .join(latest_status_subquery, Container.id == latest_status_subquery.c.container_id)\
+        .join(ContainerStatus, db.and_(
+            ContainerStatus.container_id == latest_status_subquery.c.container_id,
+            ContainerStatus.created_at == latest_status_subquery.c.max_date,
+            ContainerStatus.status == 'discharged'
+        ))\
+        .count()
+    
     return render_template('index.html', 
                           containers=containers, 
                           vessels=vessels, 
@@ -518,12 +548,15 @@ def index():
                           standard_locations=standard_locations,
                           other_locations=other_locations,
                           location_counts=location_counts,
-                          loaded_count=loaded_count,
-                          discharged_count=discharged_count,
-                          sort_by=sort_by,  # Pass sorting parameters to template
+                          loaded_count=loaded_count,  # This is for the current filtered view
+                          discharged_count=discharged_count,  # This is for the current filtered view
+                          sort_by=sort_by,
                           sort_order=sort_order,
                           pagination=pagination,
-                          search_term=search_term)  # Pass search term to template
+                          # Add the total counts for the entire database
+                          total_container_count=total_container_count,
+                          total_loaded_count=total_loaded_count,
+                          total_discharged_count=total_discharged_count)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
