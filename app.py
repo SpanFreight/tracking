@@ -540,6 +540,11 @@ def index():
         ))\
         .count()
     
+    # Add a clear message when filters are active
+    if location_filter and not search_term:
+        filter_message = f"Showing containers in {location_filter} only. <a href='{url_for('index', location='')}'>View all locations</a>"
+        flash(Markup(filter_message), 'info')
+    
     return render_template('index.html', 
                           containers=containers, 
                           vessels=vessels, 
@@ -801,7 +806,7 @@ def add_container():
                     flash(f'Error processing file: {str(e)}', 'danger')
                 # Delete the file after processing
                 os.remove(filepath)
-                return redirect(url_for('index'))
+                return redirect(url_for('index', location=''))
             else:
                 flash('File type not allowed. Please upload xlsx, xls or csv files.', 'danger')
                 return redirect(request.url)
@@ -873,9 +878,24 @@ def add_container():
                             vessel_id=vessel_id
                         )
                         db.session.add(movement)
+            else:
+                # If no status provided, create a default one so container appears in the dashboard
+                default_location = request.form.get('location', 'Moroni')
+                default_date = datetime.now()
+                
+                container_status = ContainerStatus(
+                    status='received',
+                    date=default_date,
+                    location=default_location or 'Moroni',  # Default to Moroni if location is empty
+                    notes="Initial container status",
+                    container_id=new_container.id
+                )
+                db.session.add(container_status)
+                
             db.session.commit()
-            flash('Container added successfully!', 'success')
-            return redirect(url_for('index'))
+            flash(f'Container {container_number} added successfully! <a href="{url_for("container_detail", id=new_container.id)}">View container</a>', 'success')
+            # Redirect to index without location filter to ensure the container is visible
+            return redirect(url_for('index', location=''))
     # Get vessels for the vessel dropdown
     vessels = Vessel.query.all()
     return render_template('add_container.html', now=datetime.now(), vessels=vessels)
