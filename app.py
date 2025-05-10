@@ -3106,56 +3106,6 @@ def admin_create_backup_dir():
         
     return redirect(url_for('admin_system'))
 
-@app.route('/containers/bulk-delete', methods=['POST'])
-@login_required
-def bulk_delete_containers():
-    """Endpoint for bulk deleting multiple containers"""
-    data = request.json
-    container_ids = data.get('container_ids', [])
-    
-    if not container_ids:
-        return jsonify({'error': 'No containers selected for deletion'}), 400
-    
-    success_count = 0
-    error_messages = []
-    deleted_numbers = []
-    
-    for container_id in container_ids:
-        try:
-            container = Container.query.get(container_id)
-            if not container:
-                error_messages.append(f"Container ID {container_id} not found")
-                continue
-            
-            # Store container number for confirmation message
-            container_number = container.container_number
-            deleted_numbers.append(container_number)
-            
-            # Delete the container (cascade will delete its statuses too)
-            db.session.delete(container)
-            success_count += 1
-        except Exception as e:
-            error_messages.append(f"Error with container ID {container_id}: {str(e)}")
-                
-    if success_count > 0:
-        try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'error': f"Database error: {str(e)}"}), 500
-    
-    result = {
-        'success_count': success_count,
-        'error_count': len(container_ids) - success_count,
-        'message': f"Deleted {success_count} containers.",
-        'deleted_numbers': deleted_numbers
-    }
-    
-    if error_messages:
-        result['errors'] = error_messages
-    
-    return jsonify(result)
-
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()  # This will create any missing tables including User

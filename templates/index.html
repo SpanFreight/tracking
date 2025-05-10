@@ -153,25 +153,24 @@
             </div>
         </div>
         
-        <!-- Add this somewhere near the top of your container table -->
-        <div class="bulk-actions mb-3" id="bulk-action-controls" style="display: none;">
-          <div class="alert alert-info">
-            <strong><span id="selected-count">0</span> containers selected</strong>
-            <div class="mt-2">
-              <button type="button" id="bulk-delete-button" class="btn btn-danger btn-sm">
-                <i class="fas fa-trash"></i> Delete Selected
-              </button>
+        <!-- Add this right after the search/filter controls and before the container table -->
+        <div id="bulk-action-controls" class="d-none d-flex justify-content-between align-items-center p-2 mb-3 bg-light border rounded">
+            <div>
+                <span class="fw-bold"><span id="selected-count">0</span> containers selected</span>
             </div>
-          </div>
+            <div>
+                <button id="bulk-delete-btn" class="btn btn-danger btn-sm">
+                    <i class="fas fa-trash-alt"></i> Delete Selected
+                </button>
+            </div>
         </div>
-        
+
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
-                        <th class="select-column" style="display: none;"><input type="checkbox" id="select-all-checkbox"></th>
-                        <th scope="col" width="30">
-                          <input type="checkbox" id="select-all-containers">
+                        <th width="40">
+                            <input type="checkbox" id="select-all-containers" class="form-check-input">
                         </th>
                         <th>Container Number</th>
                         <th>Type</th>
@@ -202,11 +201,8 @@
                     {% endfor %}
                     
                     <tr data-status="{{ latest_status.status if latest_status else 'not-set' }}" data-id="{{ container.id }}">
-                        <td class="select-column" style="display: none;">
-                            <input type="checkbox" class="container-select" data-id="{{ container.id }}" data-number="{{ container.container_number }}">
-                        </td>
                         <td>
-                          <input type="checkbox" class="container-checkbox" value="{{ container.id }}">
+                            <input type="checkbox" class="container-checkbox form-check-input" value="{{ container.id }}">
                         </td>
                         <td>{{ container.container_number }}</td>
                         <td>{{ container.container_type }}</td>
@@ -1004,5 +1000,5 @@
         updateDashboardCounts();
     });
 </script>
-<script src="{{ url_for('static', filename='js/bulk-actions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bulk-operations.js') }}"></script>
 {% endblock %}
