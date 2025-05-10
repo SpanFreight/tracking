@@ -68,6 +68,11 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- Centered pagination controls -->
+        {% if pagination.pages > 1 %}
+          {% include 'includes/pagination.html' %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -1334,9 +1334,66 @@ def vessels():
     """List all vessels"""
     # Check and update vessel statuses automatically based on ETA
     update_vessel_statuses_auto()
-    # Order vessels by created_at in descending order (newest first)
-    vessel_list = Vessel.query.order_by(Vessel.created_at.desc()).all()
-    return render_template('vessels.html', vessels=vessel_list)
+    
+    # Get page parameter with default value of 1
+    page = request.args.get('page', 1, type=int)
+    per_page = 10  # Show 10 vessels per page
+    
+    # Get sorting parameters from the request
+    sort_by = request.args.get('sort', 'created_at')  # Default sort by creation date
+    sort_order = request.args.get('order', 'desc')    # Default to descending order
+    
+    # Search parameter
+    search_term = request.args.get('search', '').strip()
+    
+    # Base query
+    vessels_query = Vessel.query
+    
+    # Apply search if provided
+    if search_term:
+        vessels_query = vessels_query.filter(
+            db.or_(
+                Vessel.name.ilike(f'%{search_term}%'),
+                Vessel.imo_number.ilike(f'%{search_term}%'),
+                Vessel.vessel_type.ilike(f'%{search_term}%'),
+                Vessel.current_location.ilike(f'%{search_term}%'),
+                Vessel.current_destination.ilike(f'%{search_term}%')
+            )
+        )
+    
+    # Apply sorting
+    if sort_by == 'name':
+        if sort_order == 'desc':
+            vessels_query = vessels_query.order_by(Vessel.name.desc())
+        else:
+            vessels_query = vessels_query.order_by(Vessel.name)
+    elif sort_by == 'status':
+        if sort_order == 'desc':
+            vessels_query = vessels_query.order_by(Vessel.status.desc())
+        else:
+            vessels_query = vessels_query.order_by(Vessel.status)
+    else:  # Default to created_at
+        if sort_order == 'desc':
+            vessels_query = vessels_query.order_by(Vessel.created_at.desc())
+        else:
+            vessels_query = vessels_query.order_by(Vessel.created_at)
+    
+    # Get total vessels for statistics
+    total_vessel_count = vessels_query.count()
+    
+    # Create pagination object
+    pagination = Pagination(vessels_query, page, per_page, 'vessels', 
+                           sort=sort_by, order=sort_order, search=search_term)
+    
+    # Get paginated vessels
+    vessel_list = pagination.items
+    
+    return render_template('vessels.html', 
+                          vessels=vessel_list, 
+                          pagination=pagination,
+                          total_vessel_count=total_vessel_count,
+                          sort_by=sort_by,
+                          sort_order=sort_order)
 
 @app.route('/vessels/add', methods=['GET', 'POST'])
 @login_required
@@ -3024,6 +3081,30 @@ def admin_delivery_orders():
         total_containers=len(container_print_data),
         total_prints=total_prints
     )
+
+@app.route('/admin/backup/create-directory', methods=['POST'])
+@login_required
+def admin_create_backup_dir():
+    """Admin endpoint to create a backup directory"""
+    if not current_user.is_admin:
+        flash('You do not have permission to perform this action.', 'danger')
+        return redirect(url_for('index'))
+    
+    try:
+        # Create backup directory
+        backup_path = os.path.join(app.root_path, 'backups')
+        os.makedirs(backup_path, exist_ok=True)
+        
+        # Create a timestamped subdirectory for organized backups
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_subdir = os.path.join(backup_path, f'backup_{timestamp}')
+        os.makedirs(backup_subdir, exist_ok=True)
+        
+        flash(f'Backup directory created successfully: backup_{timestamp}', 'success')
+    except Exception as e:
+        flash(f'Error creating backup directory: {str(e)}', 'danger')
+        
+    return redirect(url_for('admin_system'))
 
 if __name__ == '__main__':
     with app.app_context():

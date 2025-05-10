@@ -290,25 +290,6 @@
                 
                 <!-- Add this within your existing database management section -->
 
-                <div class="card mt-4 border-danger">
-                  <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0">Recreate Database</h5>
-                  </div>
-                  <div class="card-body">
-                    <div class="alert alert-danger">
-                      <h5 class="alert-heading">Danger Zone!</h5>
-                      <p>This action will <strong>DELETE</strong> the existing database and create a new one with the updated schema.</p>
-                      <p>All data will be lost. A backup will be created automatically before deletion.</p>
-                    </div>
-                    <form method="POST" action="{{ url_for('recreate_database') }}" onsubmit="return confirm('Are you absolutely sure you want to delete all data and recreate the database?');">
-                      <div class="mb-3">
-                        <label for="confirm" class="form-label">Type 'RECREATE' to confirm</label>
-                        <input type="text" class="form-control" id="confirm" name="confirm" required autocomplete="off">
-                      </div>
-                      <button type="submit" class="btn btn-danger">Recreate Database</button>
-                    </form>
-                  </div>
-                </div>
             </div>
         </div>
         
@@ -485,5 +466,23 @@
                 }
             });
     });
+
+function confirmReset(form) {
+    var confirmText = form.querySelector('input[name="confirm"]').value;
+    if (confirmText !== 'RESET') {
+        alert('Please type RESET exactly to confirm database reset.');
+        return false;
+    }
+    return confirm('WARNING: This will delete ALL data except admin accounts. This action cannot be undone. Are you sure?');
+}
+
+function confirmRecreate(form) {
+    var confirmText = form.querySelector('input[name="confirm"]').value;
+    if (confirmText !== 'RECREATE') {
+        alert('Please type RECREATE exactly to confirm database recreation.');
+        return false;
+    }
+    return confirm('WARNING: This will recreate the database with the new schema. ALL data will be lost. This action cannot be undone. Are you sure?');
+}
 </script>
 {% endblock %}
