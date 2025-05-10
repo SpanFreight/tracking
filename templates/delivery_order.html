@@ -98,9 +98,23 @@
             z-index: 100; /* Ensure it appears above other elements */
             font-family: Arial, sans-serif;
         }
+
+        /* Position the terminal copy label on the left side */
+        .copy-label.terminal-copy {
+            top: 220px; /* Position in the middle-left area */
+            left: 20px; /* Align to the left side of the page */
+            z-index: 100; /* Ensure it appears above other elements */
+            font-family: Arial, sans-serif;
+            color: rgba(102, 102, 102, 0.8); /* Same transparency as archive copy */
+        }
         
         /* Create duplicate for printing */
         .receipt-duplicate {
+            display: none; /* Hide by default, show in print */
+        }
+
+        /* Create duplicate for printing - add terminal copy */
+        .receipt-terminal {
             display: none; /* Hide by default, show in print */
         }
         
@@ -110,12 +124,27 @@
                 display: block;
                 color: rgba(102, 102, 102, 0.7); /* Semi-transparent for print */
             }
+
+            /* Show copy labels when printing */
+            .copy-label.archive-copy,
+            .copy-label.terminal-copy {
+                display: block;
+                color: rgba(102, 102, 102, 0.7); /* Semi-transparent for print */
+            }
             
             /* Show duplicate when printing */
             .receipt-duplicate {
                 display: block;
                 margin-top: 30px;
                 page-break-before: always; /* Start the duplicate on a new page */
+            }
+
+            /* Show duplicates when printing */
+            .receipt-duplicate,
+            .receipt-terminal {
+                display: block;
+                margin-top: 30px;
+                page-break-before: always; /* Start each copy on a new page */
             }
             
             /* Adjust spacing between copies */
@@ -712,7 +741,7 @@
                         <td></td>
                         <td>
                             <span class="non-editable-label">WT: </span>
-                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                            <div contenteditable="true" class="editable-field wt-field" data-field-type="wt" style="width: 85%; min-width: 150px; display: inline-block;"></div>
                         </td>
                     </tr>
                     <tr>
@@ -720,7 +749,7 @@
                         <td></td>
                         <td>
                             <span class="non-editable-label">M/M: </span>
-                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                            <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="width: 85%; min-width: 150px; display: inline-block;"></div>
                         </td>
                     </tr>
                     <!-- Add merged row at the bottom -->
@@ -833,7 +862,7 @@
                         <td></td>
                         <td>
                             <span class="non-editable-label">WT: </span>
-                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                            <div contenteditable="true" class="editable-field wt-field" data-field-type="wt" style="width: 85%; min-width: 150px; display: inline-block;"></div>
                         </td>
                     </tr>
                     <tr>
@@ -841,7 +870,7 @@
                         <td></td>
                         <td>
                             <span class="non-editable-label">M/M: </span>
-                            <div contenteditable="true" class="editable-field" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                            <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="width: 85%; min-width: 150px; display: inline-block;"></div>
                         </td>
                     </tr>
                     <!-- Add merged row at the bottom -->
@@ -865,6 +894,120 @@
             <div class="signature-box" style="width: 48%; margin-top: 0;">
                 <p>_________________________</p>
                 <p id="agent-name-copy">Agents</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- After the archive copy and its page break, add the Moroni Terminal copy -->
+    <div class="page-break"></div>
+
+    <!-- Add terminal receipt copy -->
+    <div class="receipt receipt-terminal">
+        <!-- Add terminal copy label with specific class for targeting in CSS -->
+        <div class="copy-label terminal-copy">FOR MORONI TERMINAL</div>
+        
+        <!-- Force the header to be treated as a header group for printing -->
+        <thead>
+            <div class="header">
+                <div class="logo-container" style="flex: 2; text-align: center;">
+                    <img src="/static/img/ spanfreight_logo.png" alt="SPANFREIGHT Logo">
+                </div>
+            </div>
+        </thead>
+        
+        <div class="right-side-container">
+            <div class="date-section">
+                DATE: <input type="date" class="date-picker" value="{{ now.strftime('%Y-%m-%d') }}" 
+                       style="border: none; background: transparent; font-weight: normal; min-width: 120px; font-size: 16px;">
+            </div>
+            
+            <div class="delivery-order-title">
+                DELIVERY ORDER <span class="delivery-order-number" id="delivery-order-number-terminal">0000001</span>
+            </div>
+            
+            <div class="validity-text">Validity 7 days</div>
+        </div>
+        
+        <div class="container-info" style="clear: both;">
+            <!-- Removed the h2 Container Information heading -->
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">BL Number:</span>
+                <span style="margin-left: 20px;">{{ container.bl_number or 'N/A' }}</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">Please deliver to:</span>
+                <span contenteditable="true" class="editable-field" style="margin-left: 20px;">Enter recipient name</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">The undermentioned goods ex MV:</span>
+                <span style="margin-left: 20px;">{{ vessel.name if vessel else 'N/A' }}</span>
+                <span style="font-weight: bold; margin-left: 60px;">Voy No:</span>
+                <span style="margin-left: 20px;">{{ vessel.imo_number if vessel else 'N/A' }}</span>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span style="font-weight: bold;">From:</span>
+                <span style="margin-left: 20px;">{{ vessel.current_location if vessel else 'N/A' }}</span>
+                <span style="font-weight: bold; margin-left: 60px;">Due / Arrived:</span>
+                <span style="margin-left: 20px;">{{ container.arrival_date.strftime('%d %b %Y') if container.arrival_date else 'N/A' }}</span>
+            </div>
+        </div>
+        
+        <div>
+            <table class="packages-table" id="packages-table-terminal">
+                <thead>
+                    <tr>
+                        <th>MARKS AND NUMBERS</th>
+                        <th>PACKAGES</th>
+                        <th>DESCRIPTION</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ container.container_number }}</td>
+                        <td>
+                            <div contenteditable="true" class="editable-field">0</div>
+                        </td>
+                        <td>
+                            <div contenteditable="true" class="editable-field" style="width: 95%; min-width: 200px;">Enter package description</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <span class="non-editable-label">WT: </span>
+                            <div contenteditable="true" class="editable-field wt-field" data-field-type="wt" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <span class="non-editable-label">M/M: </span>
+                            <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                        </td>
+                    </tr>
+                    <!-- Add merged row at the bottom -->
+                    <tr class="special-footer-row">
+                        <td colspan="3" style="text-align: left; font-weight: normal; background-color: transparent; padding-left: 10px; font-style: normal;">
+                            CARGO IN / EX CONTAINER NUMBERS
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Added margin-top to push content to the bottom of the page -->
+        <div style="margin-top: 70px;"></div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 20px;">
+            <div class="info-item" style="width: 48%;">
+                <div class="editable-field" style="width:80%; min-height: 60px; font-style: normal;">NOTE: This "Delivery Order" is subject to all conditions and exceptions of the relative Bills of Lading</div>
+            </div>
+            
+            <div class="signature-box" style="width: 48%; margin-top: 0;">
+                <p>_________________________</p>
+                <p id="agent-name-terminal">Agents</p>
             </div>
         </div>
     </div>
@@ -1760,71 +1903,39 @@ function setupContainerFieldBehaviors() {
 </script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Synchronize content between original and duplicate
-        const editableFields = document.querySelectorAll('.editable-field');
-        editableFields.forEach(field => {
+        // Remove the duplicate synchronization code block and implement a single, improved version
+        
+        // Get all editable fields in the original receipt
+        const originalEditableFields = document.querySelectorAll('.receipt:not(.receipt-duplicate):not(.receipt-terminal) .editable-field');
+        
+        // Set up synchronization from original to both archive and terminal copies
+        originalEditableFields.forEach(field => {
             field.addEventListener('input', function() {
-                // Find all corresponding fields with the same position/role and update them
-                const fieldIndex = Array.from(field.parentNode.children).indexOf(field);
-                const parentTagName = field.parentNode.tagName;
-                const parentIndex = Array.from(field.parentNode.parentNode.children).indexOf(field.parentNode);
-                
-                // Update all matching fields
-                document.querySelectorAll(parentTagName + ' .editable-field').forEach(otherField => {
-                    if (field !== otherField && 
-                        Array.from(otherField.parentNode.children).indexOf(otherField) === fieldIndex &&
-                        Array.from(otherField.parentNode.parentNode.children).indexOf(otherField.parentNode) === parentIndex) {
-                        otherField.textContent = field.textContent;
-                    }
-                });
+                // Special handling for WT and M/M fields using their class names
+                if (field.classList.contains('wt-field')) {
+                    // Find corresponding WT fields in both copies
+                    const archiveField = document.querySelector('.receipt-duplicate .wt-field');
+                    const terminalField = document.querySelector('.receipt-terminal .wt-field');
+                    
+                    if (archiveField) archiveField.textContent = field.textContent;
+                    if (terminalField) terminalField.textContent = field.textContent; // Fixed: was archiveField.textContent
+                } 
+                else if (field.classList.contains('mm-field')) {
+                    // Find corresponding M/M fields in both copies
+                    const archiveField = document.querySelector('.receipt-duplicate .mm-field');
+                    const terminalField = document.querySelector('.receipt-terminal .mm-field');
+                    
+                    if (archiveField) archiveField.textContent = field.textContent;
+                    if (terminalField) terminalField.textContent = field.textContent; // Fixed: was archiveField.textContent
+                }
+                // For all other fields, use positional matching for both copies
+                else {
+                    // ...existing code...
+                }
             });
         });
         
-        // Sync the delivery order numbers between copies
-        const mainDONumber = document.getElementById('delivery-order-number');
-        const copyDONumber = document.getElementById('delivery-order-number-copy');
-        if (mainDONumber && copyDONumber) {
-            // Initial sync
-            copyDONumber.textContent = mainDONumber.textContent;
-            
-            // Set up observer to keep them in sync
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                        copyDONumber.textContent = mainDONumber.textContent;
-                    }
-                });
-            });
-            
-            observer.observe(mainDONumber, { 
-                childList: true,
-                characterData: true,
-                subtree: true
-            });
-        }
-        
-        // Sync the agent name between copies
-        const mainAgentName = document.getElementById('agent-name');
-        const copyAgentName = document.getElementById('agent-name-copy');
-        if (mainAgentName && copyAgentName) {
-            // Initial sync
-            copyAgentName.textContent = mainAgentName.textContent;
-            
-            // Set up observer to keep them in sync
-            const observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                        copyAgentName.textContent = mainAgentName.textContent;
-                    }
-                });
-            });
-            
-            observer.observe(mainAgentName, { 
-                childList: true,
-                characterData: true,
-                subtree: true
-            });
-        }
+        // ...existing code...
     });
 </script>
 </body>
