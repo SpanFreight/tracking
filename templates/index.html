@@ -153,11 +153,42 @@
             </div>
         </div>
         
+        <!-- Add this right after the search/filter controls and before the container table -->
+        <div id="bulk-action-controls" class="d-none d-flex justify-content-between align-items-center p-2 mb-3 bg-light border rounded">
+            <div>
+                <span class="fw-bold"><span id="selected-count">0</span> containers selected</span>
+            </div>
+            <div>
+                <button id="bulk-delete-btn" class="btn btn-danger btn-sm">
+                    <i class="fas fa-trash-alt"></i> Delete Selected
+                </button>
+            </div>
+        </div>
+
+        <!-- Status filter dropdown -->
+        <div class="dropdown mb-3">
+          <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="statusFilterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            {% if status_filter %}Filter: {{ status_filter|title }}{% else %}Filter by Status{% endif %}
+          </button>
+          <ul class="dropdown-menu" aria-labelledby="statusFilterDropdown">
+            <li><a class="dropdown-item {% if not status_filter %}active{% endif %}" 
+                  href="{{ url_for('index', location=location_filter, sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}">All</a></li>
+            <li><a class="dropdown-item {% if status_filter == 'loaded' %}active{% endif %}" 
+                  href="{{ url_for('index', status='loaded', location=location_filter, sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}">Loaded</a></li>
+            <li><a class="dropdown-item {% if status_filter == 'discharged' %}active{% endif %}" 
+                  href="{{ url_for('index', status='discharged', location=location_filter, sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}">Discharged</a></li>
+            <li><a class="dropdown-item {% if status_filter == 'emptied' %}active{% endif %}" 
+                  href="{{ url_for('index', status='emptied', location=location_filter, sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}">Emptied</a></li>
+          </ul>
+        </div>
+
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
-                        <th class="select-column" style="display: none;"><input type="checkbox" id="select-all-checkbox"></th>
+                        <th width="40">
+                            <input type="checkbox" id="select-all-containers" class="form-check-input">
+                        </th>
                         <th>Container Number</th>
                         <th>Type</th>
                         <th>Loading Port</th>
@@ -187,8 +218,8 @@
                     {% endfor %}
                     
                     <tr data-status="{{ latest_status.status if latest_status else 'not-set' }}" data-id="{{ container.id }}">
-                        <td class="select-column" style="display: none;">
-                            <input type="checkbox" class="container-select" data-id="{{ container.id }}" data-number="{{ container.container_number }}">
+                        <td>
+                            <input type="checkbox" class="container-checkbox form-check-input" value="{{ container.id }}">
                         </td>
                         <td>{{ container.container_number }}</td>
                         <td>{{ container.container_type }}</td>
@@ -290,7 +321,37 @@
         
         <!-- Centered pagination controls -->
         {% if pagination.pages > 1 %}
-          {% include 'includes/pagination.html' %}
+        <nav>
+          <ul class="pagination justify-content-center">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+              <a class="page-link" href="{{ url_for('index', page=pagination.prev_num, location=location_filter, status=status_filter, sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}">
+                <span>&laquo;</span>
+              </a>
+            </li>
+            {% endif %}
+            
+            {% for page in pagination.iter_pages() %}
+              {% if page %}
+                <li class="page-item {% if page == pagination.page %}active{% endif %}">
+                  <a class="page-link" href="{{ url_for('index', page=page, location=location_filter, status=status_filter, sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}">{{ page }}</a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">...</span>
+                </li>
+              {% endif %}
+            {% endfor %}
+            
+            {% if pagination.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="{{ url_for('index', page=pagination.next_num, location=location_filter, status=status_filter, sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}">
+                <span>&raquo;</span>
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </nav>
         {% endif %}
     </div>
 </div>
@@ -986,4 +1047,5 @@
         updateDashboardCounts();
     });
 </script>
+<script src="{{ url_for('static', filename='js/bulk-operations.js') }}"></script>
 {% endblock %}
