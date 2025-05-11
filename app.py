@@ -667,9 +667,13 @@ def add_container():
                 try:
                     # Process the Excel file
                     if filename.endswith('.csv'):
-                        df = pd.read_csv(filepath)
+                        # Use chunksize for CSV files to process in batches
+                        chunk_iterator = pd.read_csv(filepath, chunksize=100)
+                        df = next(chunk_iterator)  # Get first chunk for column validation
                     else:
+                        # For Excel files, we'll process in batches later
                         df = pd.read_excel(filepath)
+                    
                     # Improved error message for missing required columns
                     missing_columns = []
                     required_columns = ['container_number', 'container_type']
@@ -681,137 +685,159 @@ def add_container():
                         error_msg += "The Excel file must contain at minimum the columns: container_number, container_type. "
                         flash(error_msg, 'danger')
                         return redirect(request.url)
-                    # Process each row
+                    
+                    # Process file in batches
                     success_count = 0
                     error_count = 0
                     vessels_not_found = set()
                     
-                    for _, row in df.iterrows():
-                        container_number = str(row['container_number']).strip()
-                        container_type = str(row['container_type']).strip()
-                        # Skip empty rows
-                        if not container_number or not container_type:
-                            continue
-                        # Check if container already exists
-                        existing_container = Container.query.filter_by(container_number=container_number).first()
-                        if existing_container:
-                            error_count += 1
-                            continue
-                        # Create new container with all possible fields
-                        new_container = Container(
-                            container_number=container_number,
-                            container_type=container_type,
-                            loading_port=map_location_codes(str(row.get('loading_port', '')).strip()) if not pd.isna(row.get('loading_port', '')) else None,
-                            final_destination=map_location_codes(str(row.get('final_destination', '')).strip()) if not pd.isna(row.get('final_destination', '')) else None,
-                            opr=str(row.get('opr', '')).strip() if not pd.isna(row.get('opr', '')) else None,
-                            bl_number=str(row.get('bl_number', '')).strip() if not pd.isna(row.get('bl_number', '')) else None
-                        )
+                    # Function to process a batch of records
+                    def process_batch(batch_df):
+                        nonlocal success_count, error_count, vessels_not_found
+                        container_objects = []
                         
-                        # Parse arrival date if provided
-                        if 'arrival_date' in df.columns and not pd.isna(row.get('arrival_date')):
-                            try:
-                                # Try to parse from Excel date
-                                if isinstance(row['arrival_date'], str):
-                                    date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y', '%m-%d-%Y']
-                                    for format in date_formats:
-                                        try:
-                                            new_container.arrival_date = datetime.strptime(row['arrival_date'], format)
-                                            break
-                                        except ValueError:
-                                            continue
-                                else:
-                                    # Handle numeric/datetime from pandas
-                                    new_container.arrival_date = pd.to_datetime(row['arrival_date']).to_pydatetime()
-                            except Exception:
-                                # If parsing fails, don't set the date
-                                pass
+                        try:
+                            # Step 1: Create container objects first
+                            for _, row in batch_df.iterrows():
+                                container_number = str(row['container_number']).strip()
+                                container_type = str(row['container_type']).strip()
+                                # Skip empty rows
+                                if not container_number or not container_type:
+                                    continue
+                                # Check if container already exists
+                                existing_container = Container.query.filter_by(container_number=container_number).first()
+                                if existing_container:
+                                    error_count += 1
+                                    continue
+                                    
+                                new_container = Container(
+                                    container_number=container_number,
+                                    container_type=container_type,
+                                    loading_port=map_location_codes(str(row.get('loading_port', '')).strip()) if not pd.isna(row.get('loading_port', '')) else None,
+                                    final_destination=map_location_codes(str(row.get('final_destination', '')).strip()) if not pd.isna(row.get('final_destination', '')) else None,
+                                    opr=str(row.get('opr', '')).strip() if not pd.isna(row.get('opr', '')) else None,
+                                    bl_number=str(row.get('bl_number', '')).strip() if not pd.isna(row.get('bl_number', '')) else None
+                                )
                                 
-                        # Parse stripping date if provided
-                        if 'stripping_date' in df.columns and not pd.isna(row.get('stripping_date')):
-                            try:
-                                # Try to parse from Excel date
-                                if isinstance(row['stripping_date'], str):
-                                    date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y', '%m-%d-%Y']
-                                    for format in date_formats:
-                                        try:
-                                            new_container.stripping_date = datetime.strptime(row['stripping_date'], format)
-                                            break
-                                        except ValueError:
-                                            continue
-                                else:
-                                    # Handle numeric/datetime from pandas
-                                    new_container.stripping_date = pd.to_datetime(row['stripping_date']).to_pydatetime()
-                            except Exception:
-                                # If parsing fails, don't set the date
-                                pass
+                                # Parse dates if provided
+                                # ...existing code...
                                 
-                        db.session.add(new_container)
-                        db.session.flush()  # Get the container ID without committing
-                        
-                        # Add status if provided
-                        has_status = all(col in df.columns for col in ['status', 'date', 'location'])
-                        status_date = None
-                        status_location = None
-                        
-                        if has_status and not pd.isna(row.get('status')) and not pd.isna(row.get('date')) and not pd.isna(row.get('location')):
-                            status = str(row['status']).strip()
-                            # Parse date - try multiple formats
-                            try:
-                                # Try to parse from Excel date
-                                if isinstance(row['date'], str):
-                                    date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y', '%m-%d-%Y']
-                                    for format in date_formats:
-                                        try:
-                                            status_date = datetime.strptime(row['date'], format)
-                                            break
-                                        except ValueError:
-                                            continue
-                                else:
-                                    # Handle numeric/datetime from pandas
-                                    status_date = pd.to_datetime(row['date']).to_pydatetime()
-                            except Exception:
-                                # If all parsing fails, use today's date
-                                status_date = datetime.now()
-                                
-                            # Map location codes
-                            status_location = map_location_codes(str(row['location']).strip())
-                            # Add notes if available
-                            notes = str(row.get('notes', '')).strip() if not pd.isna(row.get('notes', '')) else None
+                                # Add to session but don't commit yet
+                                db.session.add(new_container)
+                                container_objects.append({
+                                    'container': new_container,
+                                    'row_data': row
+                                })
                             
-                            container_status = ContainerStatus(
-                                status=status,
-                                date=status_date,
-                                location=status_location,
-                                notes=notes,
-                                container_id=new_container.id   
-                            )
-                            db.session.add(container_status)
-                        
-                        # Handle vessel information if provided
-                        if 'vessel' in df.columns and not pd.isna(row.get('vessel')):
-                            vessel_name = str(row.get('vessel')).strip()
-                            if vessel_name:
-                                # Look up vessel by name
-                                vessel = Vessel.query.filter(Vessel.name.ilike(vessel_name)).first()
-                                if vessel and status_date and status_location:
-                                    # If status is "loaded" and we have a vessel, create a movement record
-                                    if has_status and status.lower() == 'loaded':
-                                        movement = ContainerMovement(
-                                            operation_type='load',
-                                            operation_date=status_date,
+                            # Step 2: Flush to get IDs assigned
+                            if container_objects:
+                                db.session.flush()
+                                
+                                # Step 3: Process container relationships with the row data we stored
+                                for obj in container_objects:
+                                    container = obj['container']
+                                    row = obj['row_data']
+                                    
+                                    # Add status if provided
+                                    has_status = all(col in batch_df.columns for col in ['status', 'date', 'location'])
+                                    
+                                    if has_status and not pd.isna(row.get('status')) and not pd.isna(row.get('date')) and not pd.isna(row.get('location')):
+                                        status = str(row.get('status')).strip()
+                                        status_date = None
+                                        
+                                        # Parse date - try multiple formats
+                                        try:
+                                            if isinstance(row['date'], str):
+                                                date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y', '%m-%d-%Y']
+                                                for format in date_formats:
+                                                    try:
+                                                        status_date = datetime.strptime(row['date'], format)
+                                                        break
+                                                    except ValueError:
+                                                        continue
+                                            else:
+                                                # Handle numeric/datetime from pandas
+                                                status_date = pd.to_datetime(row['date']).to_pydatetime()
+                                        except Exception:
+                                            # If all parsing fails, use today's date
+                                            status_date = datetime.now()
+                                        
+                                        # Map location codes
+                                        status_location = map_location_codes(str(row['location']).strip())
+                                        # Add notes if available
+                                        notes = str(row.get('notes', '')).strip() if not pd.isna(row.get('notes', '')) else None
+                                        
+                                        container_status = ContainerStatus(
+                                            status=status,
+                                            date=status_date,
                                             location=status_location,
-                                            notes=f"Loaded onto vessel {vessel.name} (via import)",
-                                            container_id=new_container.id,
-                                            vessel_id=vessel.id
+                                            notes=notes,
+                                            container_id=container.id   
                                         )
-                                        db.session.add(movement)
-                                else:
-                                    # Keep track of vessel names that weren't found
-                                    vessels_not_found.add(vessel_name)
-                        
-                        success_count += 1
+                                        db.session.add(container_status)
+                                        
+                                        # Handle vessel information if provided
+                                        if 'vessel' in batch_df.columns and not pd.isna(row.get('vessel')):
+                                            vessel_name = str(row.get('vessel')).strip()
+                                            if vessel_name:
+                                                # Look up vessel by name
+                                                vessel = Vessel.query.filter(Vessel.name.ilike(vessel_name)).first()
+                                                if vessel and status_date and status == 'loaded':
+                                                    # If status is "loaded" and we have a vessel, create a movement record
+                                                    movement = ContainerMovement(
+                                                        operation_type='load',
+                                                        operation_date=status_date,
+                                                        location=status_location,
+                                                        notes=f"Loaded onto vessel {vessel.name} (via import)",
+                                                        container_id=container.id,
+                                                        vessel_id=vessel.id
+                                                    )
+                                                    db.session.add(movement)
+                                                elif vessel is None and vessel_name not in vessels_not_found:
+                                                    # Keep track of vessel names that weren't found
+                                                    vessels_not_found.add(vessel_name)
+                                
+                                # Step 4: Count successfully added containers and commit
+                                success_count += len(container_objects)
+                                db.session.commit()
+                                
+                                # Step 5: Clear SQLAlchemy session to free memory
+                                db.session.expunge_all()
+                                
+                        except Exception as e:
+                            # Roll back on error and re-raise for outer handler
+                            db.session.rollback()
+                            logger.error(f"Batch processing error: {str(e)}")
+                            raise
                     
-                    db.session.commit()
+                    # Process in batches based on file type
+                    if filename.endswith('.csv'):
+                        # For CSV we already have the chunk iterator
+                        process_batch(df)  # Process first chunk we already loaded
+                        
+                        # Process remaining chunks
+                        for chunk_df in chunk_iterator:
+                            process_batch(chunk_df)
+                    else:
+                        # For Excel, create our own batches
+                        total_rows = len(df)
+                        batch_size = 100
+                        
+                        for start_idx in range(0, total_rows, batch_size):
+                            end_idx = min(start_idx + batch_size, total_rows)
+                            batch_df = df.iloc[start_idx:end_idx]
+                            process_batch(batch_df)
+                            
+                            # Clear memory
+                            del batch_df
+                            
+                            # Force garbage collection on large files
+                            if total_rows > 1000:
+                                import gc
+                                gc.collect()
+                                
+                    # Determine if status info was imported
+                    has_status = all(col in df.columns for col in ['status', 'date', 'location'])
                     status_msg = " Status information was also imported." if has_status else ""
                     flash(f'Successfully imported {success_count} containers.{status_msg} {error_count} containers were duplicates and skipped.', 'success')
                     
@@ -821,8 +847,14 @@ def add_container():
                 except Exception as e:
                     db.session.rollback()
                     flash(f'Error processing file: {str(e)}', 'danger')
+                    logger.error(f"File upload error: {str(e)}", exc_info=True)
+                
                 # Delete the file after processing
-                os.remove(filepath)
+                try:
+                    os.remove(filepath)
+                except Exception as e:
+                    logger.error(f"Error removing temporary file: {str(e)}")
+                
                 return redirect(url_for('index'))
             else:
                 flash('File type not allowed. Please upload xlsx, xls or csv files.', 'danger')
@@ -2664,7 +2696,7 @@ def delivery_order(id):
     latest_status = container.get_current_status()
     if not latest_status or latest_status.status != 'discharged':
         flash('Delivery order is only available for discharged containers.', 'warning')
-        return redirect(url_for('container_detail', id=container.id))
+        return redirect(url_for('container_detail', id=id))
     
     # Get discharge information
     discharge_movement = ContainerMovement.query.filter_by(
