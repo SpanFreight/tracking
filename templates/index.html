@@ -101,7 +101,7 @@
         </div>
         <div class="d-flex gap-2 mt-2 mt-md-0">
             <div class="btn-group me-2" id="status-filter-buttons">
-                <a href="{{ url_for('index', status='all') }}" class="btn btn-outline-primary {% if status_filter == 'all' %}active{% endif %}">All</a>
+                <button type="button" class="btn btn-outline-primary active" data-status="all">All</button>
                 <a href="{{ url_for('index', status='loaded') }}" class="btn btn-outline-success {% if status_filter == 'loaded' %}active{% endif %}">Loaded</a>
                 <a href="{{ url_for('index', status='discharged') }}" class="btn btn-outline-warning {% if status_filter == 'discharged' %}active{% endif %}">Discharged</a>
                 <a href="{{ url_for('index', status='emptied') }}" class="btn btn-outline-info {% if status_filter == 'emptied' %}active{% endif %}">Emptied</a>
