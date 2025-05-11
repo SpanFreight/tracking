@@ -2351,7 +2351,7 @@ def admin_diagnostics():
 @app.route('/admin/reset-db', methods=['POST'])
 @login_required
 def admin_reset_db():
-    """Reset the database but keep admin account without creating a backup"""
+    """Reset the database but keep admin accounts using batched deletion"""
     # Get the confirmation text
     confirm = request.form.get('confirm', '')
     
@@ -2371,24 +2371,131 @@ def admin_reset_db():
                 'is_admin': True
             })
         
-        # Drop all tables
-        db.drop_all()
+        flash('Database reset started. This may take some time...', 'info')
         
-        # Create new tables
-        db.create_all()
+        # Batch size for deletion
+        batch_size = 500
+        progress_message = "Deleting data in batches: "
         
-        # Recreate the admin accounts
-        for admin in admin_data:
-            admin_user = User(
-                username=admin['username'],
-                email=admin['email'],
-                password_hash=admin['password_hash'],  # Reuse the hashed password
-                is_admin=admin['is_admin']
-            )
-            db.session.add(admin_user)
+        # Delete in correct order to respect foreign keys
+        # Start with tables that have foreign key references to other tables
         
-        # Commit changes
+        # 1. First delete print history records
+        total_deleted = 0
+        flash(progress_message + "Print history...", 'info')
+        while True:
+            ids = db.session.query(PrintHistory.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            PrintHistory.query.filter(PrintHistory.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} print history records")
+        
+        # 2. Delete print authorizations
+        total_deleted = 0
+        flash(progress_message + "Print authorizations...", 'info')
+        while True:
+            ids = db.session.query(PrintAuthorization.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            PrintAuthorization.query.filter(PrintAuthorization.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} print authorizations")
+        
+        # 3. Delete print access requests
+        total_deleted = 0
+        flash(progress_message + "Print requests...", 'info')
+        while True:
+            ids = db.session.query(PrintAccessRequest.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            PrintAccessRequest.query.filter(PrintAccessRequest.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} print access requests")
+        
+        # 4. Delete container statuses
+        total_deleted = 0
+        flash(progress_message + "Container statuses...", 'info')
+        while True:
+            ids = db.session.query(ContainerStatus.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            ContainerStatus.query.filter(ContainerStatus.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} container statuses")
+        
+        # 5. Delete container movements
+        total_deleted = 0
+        flash(progress_message + "Container movements...", 'info')
+        while True:
+            ids = db.session.query(ContainerMovement.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            ContainerMovement.query.filter(ContainerMovement.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} container movements")
+        
+        # 6. Delete containers
+        total_deleted = 0
+        flash(progress_message + "Containers...", 'info')
+        while True:
+            ids = db.session.query(Container.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            Container.query.filter(Container.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} containers")
+        
+        # 7. Delete vessels
+        total_deleted = 0
+        flash(progress_message + "Vessels...", 'info')
+        while True:
+            ids = db.session.query(Vessel.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            Vessel.query.filter(Vessel.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} vessels")
+        
+        # 8. Delete non-admin users
+        total_deleted = 0
+        flash(progress_message + "Users...", 'info')
+        User.query.filter_by(is_admin=False).delete()
         db.session.commit()
+        
+        # 9. Reset delivery counter
+        DeliveryCounter.query.delete()
+        db.session.add(DeliveryCounter(counter=1))
+        db.session.commit()
+        
+        # Recreate admin accounts if they were accidentally deleted
+        for admin in admin_data:
+            existing_admin = User.query.filter_by(username=admin['username']).first()
+            if not existing_admin:
+                new_admin = User(
+                    username=admin['username'],
+                    email=admin['email'],
+                    password_hash=admin['password_hash'],
+                    is_admin=True
+                )
+                db.session.add(new_admin)
+        
+        db.session.commit()
+        flash('Database has been successfully reset. All data except admin accounts has been deleted.', 'success')
         
     except Exception as e:
         db.session.rollback()
