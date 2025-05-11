@@ -365,12 +365,9 @@ def index():
     # Map location filter if it's a code
     location_filter = map_location_codes(location_filter)
     
-    # Get status filter from query parameters (new)
-    status_filter = request.args.get('status', '')
-    
     # Get sorting parameters from the request
-    sort_by = request.args.get('sort', 'created_at')
-    sort_order = request.args.get('order', 'desc')
+    sort_by = request.args.get('sort', 'created_at')  # Default sort by creation date
+    sort_order = request.args.get('order', 'desc')    # Default to descending order
     
     # Get search parameter
     search_term = request.args.get('search', '').strip()
@@ -380,6 +377,7 @@ def index():
     per_page = 25  # Show 25 containers per page
     
     # Start with a base query for all containers
+    # If search term provided, filter containers by container number (case insensitive)
     if search_term:
         # Search by container number, type, BL number, vessel name, etc.
         all_containers_query = Container.query.filter(
@@ -437,6 +435,7 @@ def index():
             all_containers_query = all_containers_query.all()
     
     # Further processing of containers (filtering by location, etc.)
+    # Get containers that aren't on departed vessels
     all_containers = []
     for container in all_containers_query:
         # Skip containers that are on departed vessels
@@ -455,21 +454,13 @@ def index():
             if status.location != mapped_location:
                 status.location = mapped_location
     
-    # Apply status filter if provided (new)
-    if status_filter:
-        filtered_by_status = []
-        for container in all_containers:
-            current_status = container.get_current_status()
-            if current_status and current_status.status == status_filter:
-                filtered_by_status.append(container)
-        all_containers = filtered_by_status
-    
-    # Filter containers by location if specified
+    # Filter containers if a location is specified
     if location_filter:
         filtered_containers = []
         for container in all_containers:
             current_status = container.get_current_status()
             if current_status:
+                # Map the status location
                 current_location = map_location_codes(current_status.location)
                 if current_location == location_filter:
                     filtered_containers.append(container)
@@ -482,8 +473,7 @@ def index():
                            location=location_filter, 
                            sort=sort_by, 
                            order=sort_order,
-                           search=search_term,
-                           status=status_filter)  # Pass status filter to pagination for URL generation
+                           search=search_term)  # Pass search term to pagination for URL generation
     containers = pagination.items  # Use the paginated items
     
     # Get vessels for the page
@@ -555,15 +545,15 @@ def index():
                           vessels=vessels, 
                           now=now,
                           location_filter=location_filter,
-                          status_filter=status_filter,  # Pass status filter to template
                           standard_locations=standard_locations,
                           other_locations=other_locations,
                           location_counts=location_counts,
-                          loaded_count=loaded_count,
-                          discharged_count=discharged_count,
+                          loaded_count=loaded_count,  # This is for the current filtered view
+                          discharged_count=discharged_count,  # This is for the current filtered view
                           sort_by=sort_by,
                           sort_order=sort_order,
                           pagination=pagination,
+                          # Add the total counts for the entire database
                           total_container_count=total_container_count,
                           total_loaded_count=total_loaded_count,
                           total_discharged_count=total_discharged_count)
