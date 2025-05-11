@@ -366,7 +366,7 @@ def index():
     location_filter = map_location_codes(location_filter)
     
     # Get status filter from query parameters (new)
-    status_filter = request.args.get('status', '').strip()
+    status_filter = request.args.get('status', '')
     
     # Get sorting parameters from the request
     sort_by = request.args.get('sort', 'created_at')  # Default sort by creation date
@@ -445,13 +445,13 @@ def index():
         if not container.is_on_departed_vessel():
             all_containers.append(container)
     
-    # Get all unique locations and statuses from container statuses and map them
+    # Get all unique locations from container statuses and map them
     locations = set()
-    statuses = set()
+    statuses = set()  # Collect all available statuses for the UI
     for container in all_containers:
         status = container.get_current_status()
         if status:
-            # Add location to locations set
+            # Handle location mapping
             if status.location:
                 # Map location codes to readable names
                 mapped_location = map_location_codes(status.location)
@@ -460,11 +460,11 @@ def index():
                 if status.location != mapped_location:
                     status.location = mapped_location
             
-            # Add status to statuses set
+            # Add status to the set of available statuses
             if status.status:
                 statuses.add(status.status)
     
-    # Filter containers by location if specified
+    # Filter containers if a location is specified
     if location_filter:
         filtered_containers = []
         for container in all_containers:
@@ -478,19 +478,19 @@ def index():
     else:
         containers = all_containers
     
-    # Filter containers by status if specified (new)
+    # Filter containers by status if specified
     if status_filter:
-        status_filtered_containers = []
+        status_filtered = []
         for container in containers:
             current_status = container.get_current_status()
             if current_status and current_status.status == status_filter:
-                status_filtered_containers.append(container)
-        containers = status_filtered_containers
+                status_filtered.append(container)
+        containers = status_filtered
     
     # Apply pagination to the filtered containers list
     pagination = Pagination(containers, page, per_page, 'index', 
-                           location=location_filter, 
-                           status=status_filter,  # Pass status to pagination for URL generation
+                           location=location_filter,
+                           status=status_filter,  # Add status to pagination for URL preservation
                            sort=sort_by, 
                            order=sort_order,
                            search=search_term)
@@ -570,8 +570,8 @@ def index():
                           other_locations=other_locations,
                           location_counts=location_counts,
                           statuses=sorted(statuses),  # Pass available statuses to template
-                          loaded_count=loaded_count,  # This is for the current filtered view
-                          discharged_count=discharged_count,  # This is for the current filtered view
+                          loaded_count=loaded_count,
+                          discharged_count=discharged_count,
                           sort_by=sort_by,
                           sort_order=sort_order,
                           pagination=pagination,
