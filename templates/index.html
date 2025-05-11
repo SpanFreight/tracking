@@ -106,6 +106,10 @@
                 <button type="button" class="btn btn-outline-warning" data-status="discharged">Discharged</button>
                 <button type="button" class="btn btn-outline-info" data-status="emptied">Emptied</button>
                 <button type="button" class="btn btn-outline-primary" data-status="full">Full</button>
+                <a href="{{ url_for('index', status='loaded') }}" class="btn btn-outline-success {% if status_filter == 'loaded' %}active{% endif %}">Loaded</a>
+                <a href="{{ url_for('index', status='discharged') }}" class="btn btn-outline-primary {% if status_filter == 'discharged' %}active{% endif %}">Discharged</a>
+                <a href="{{ url_for('index', status='emptied') }}" class="btn btn-outline-secondary {% if status_filter == 'emptied' %}active{% endif %}">Emptied</a>
+                <a href="{{ url_for('index', status='full') }}" class="btn btn-outline-warning {% if status_filter == 'full' %}active{% endif %}">Full</a>
             </div>
             <form id="global-search-form" action="{{ url_for('index') }}" method="GET" class="d-flex">
                 <input type="hidden" name="location" value="{{ location_filter }}">
