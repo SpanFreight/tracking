@@ -873,6 +873,12 @@ def add_container():
             arrival_date = None
             if request.form.get('arrival_date'):
                 arrival_date = datetime.strptime(request.form.get('arrival_date'), '%Y-%m-%d')
+                
+            # Parse stripping date if provided
+            stripping_date = None
+            if request.form.get('stripping_date'):
+                stripping_date = datetime.strptime(request.form.get('stripping_date'), '%Y-%m-%d')
+                
             # Check if container already exists
             existing_container = Container.query.filter_by(container_number=container_number).first()
             if (existing_container):
@@ -885,16 +891,19 @@ def add_container():
                 final_destination=final_destination,
                 opr=opr,
                 arrival_date=arrival_date,
-                bl_number=bl_number
+                bl_number=bl_number,
+                stripping_date=stripping_date  # Add stripping date here
             )
             db.session.add(new_container)
             db.session.flush()  # Get the container ID without committing
+            
             # Add initial status if provided
             if 'status' in request.form and request.form['status'].strip():
                 status = request.form['status']
                 date = datetime.strptime(request.form['date'], '%Y-%m-%d') if request.form.get('date') else datetime.now()
                 location = map_location_codes(request.form['location']) if request.form.get('location') else ''
                 notes = request.form.get('notes', '')
+                
                 # Auto-fill notes based on status
                 if status == 'emptied' and not notes:
                     notes = "Empty Container"
@@ -914,6 +923,11 @@ def add_container():
                     container_id=new_container.id
                 )
                 db.session.add(container_status)
+                
+                # If status is 'discharged', also set the container's stripping date if not already set
+                if status == 'discharged' and not stripping_date:
+                    new_container.stripping_date = date
+                    
                 # If vessel is selected and status is 'loaded', create a movement record
                 if vessel_id and status == 'loaded':
                     vessel = Vessel.query.get(vessel_id)
