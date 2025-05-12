@@ -2761,12 +2761,27 @@ def delivery_order(id):
     discharge_date = None
     discharge_location = None
     notes = None
+    loading_location = None  # New variable to store the origin loading location
     
     if discharge_movement:
         vessel = Vessel.query.get(discharge_movement.vessel_id)
         discharge_date = discharge_movement.operation_date
         discharge_location = discharge_movement.location
         notes = discharge_movement.notes
+        
+        # Find the loading movement for this container on the same vessel
+        # The loading should have happened before the discharge
+        load_movement = ContainerMovement.query.filter_by(
+            container_id=container.id,
+            vessel_id=vessel.id,
+            operation_type='load'
+        ).filter(ContainerMovement.operation_date < discharge_movement.operation_date).first()
+        
+        if load_movement:
+            loading_location = load_movement.location
+        else:
+            # Fallback to container's loading port if no load movement found
+            loading_location = container.loading_port
     
     return render_template(
         'delivery_order.html',
@@ -2774,6 +2789,7 @@ def delivery_order(id):
         vessel=vessel,
         discharge_date=discharge_date,
         discharge_location=discharge_location,
+        loading_location=loading_location,  # Pass the loading location to the template
         notes=notes,
         now=datetime.now()
     )

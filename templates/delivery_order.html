@@ -711,7 +711,7 @@
             </div>
             <div style="margin-bottom: 20px;">
                 <span style="font-weight: bold;">From:</span>
-                <span style="margin-left: 20px;">{{ vessel.current_location if vessel else 'N/A' }}</span>
+                <span style="margin-left: 20px;">{{ loading_location if loading_location else (vessel.current_location if vessel else 'N/A') }}</span>
                 <span style="font-weight: bold; margin-left: 60px;">Due / Arrived:</span>
                 <span style="margin-left: 20px;">{{ container.arrival_date.strftime('%d %b %Y') if container.arrival_date else 'N/A' }}</span>
             </div>
@@ -832,7 +832,7 @@
             </div>
             <div style="margin-bottom: 20px;">
                 <span style="font-weight: bold;">From:</span>
-                <span style="margin-left: 20px;">{{ vessel.current_location if vessel else 'N/A' }}</span>
+                <span style="margin-left: 20px;">{{ loading_location if loading_location else (vessel.current_location if vessel else 'N/A') }}</span>
                 <span style="font-weight: bold; margin-left: 60px;">Due / Arrived:</span>
                 <span style="margin-left: 20px;">{{ container.arrival_date.strftime('%d %b %Y') if container.arrival_date else 'N/A' }}</span>
             </div>
@@ -946,7 +946,7 @@
             </div>
             <div style="margin-bottom: 20px;">
                 <span style="font-weight: bold;">From:</span>
-                <span style="margin-left: 20px;">{{ vessel.current_location if vessel else 'N/A' }}</span>
+                <span style="margin-left: 20px;">{{ loading_location if loading_location else (vessel.current_location if vessel else 'N/A') }}</span>
                 <span style="font-weight: bold; margin-left: 60px;">Due / Arrived:</span>
                 <span style="margin-left: 20px;">{{ container.arrival_date.strftime('%d %b %Y') if container.arrival_date else 'N/A' }}</span>
             </div>
