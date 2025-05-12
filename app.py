@@ -720,9 +720,48 @@ def add_container():
                                 )
                                 
                                 # Parse dates if provided
-                                # ...existing code...
+                                # Process arrival date
+                                if 'arrival_date' in row and not pd.isna(row['arrival_date']):
+                                    try:
+                                        # Handle different date formats from Excel
+                                        if isinstance(row['arrival_date'], datetime):
+                                            new_container.arrival_date = row['arrival_date']
+                                        elif isinstance(row['arrival_date'], str):
+                                            # Try multiple date formats
+                                            date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y']
+                                            for fmt in date_formats:
+                                                try:
+                                                    new_container.arrival_date = datetime.strptime(row['arrival_date'], fmt)
+                                                    break
+                                                except ValueError:
+                                                    continue
+                                        elif isinstance(row['arrival_date'], (int, float)):
+                                            # Handle Excel numeric date format
+                                            new_container.arrival_date = datetime(1899, 12, 30) + timedelta(days=int(row['arrival_date']))
+                                    except Exception as e:
+                                        logger.warning(f"Error parsing arrival date for {container_number}: {str(e)}")
+                                        
+                                # Process stripping date
+                                if 'stripping_date' in row and not pd.isna(row['stripping_date']):
+                                    try:
+                                        # Handle different date formats from Excel
+                                        if isinstance(row['stripping_date'], datetime):
+                                            new_container.stripping_date = row['stripping_date']
+                                        elif isinstance(row['stripping_date'], str):
+                                            # Try multiple date formats
+                                            date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y']
+                                            for fmt in date_formats:
+                                                try:
+                                                    new_container.stripping_date = datetime.strptime(row['stripping_date'], fmt)
+                                                    break
+                                                except ValueError:
+                                                    continue
+                                        elif isinstance(row['stripping_date'], (int, float)):
+                                            # Handle Excel numeric date format
+                                            new_container.stripping_date = datetime(1899, 12, 30) + timedelta(days=int(row['stripping_date']))
+                                    except Exception as e:
+                                        logger.warning(f"Error parsing stripping date for {container_number}: {str(e)}")
                                 
-                                # Add to session but don't commit yet
                                 db.session.add(new_container)
                                 container_objects.append({
                                     'container': new_container,
