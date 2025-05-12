@@ -101,11 +101,16 @@
         </div>
         <div class="d-flex gap-2 mt-2 mt-md-0">
             <div class="btn-group me-2" id="status-filter-buttons">
-                <a href="{{ url_for('index', location=location_filter, sort=sort_by, order=sort_order) }}" class="btn btn-outline-primary {% if not status_filter %}active{% endif %}">All</a>
-                <a href="{{ url_for('index', status='loaded', location=location_filter, sort=sort_by, order=sort_order) }}" class="btn btn-outline-success {% if status_filter == 'loaded' %}active{% endif %}">Loaded</a>
-                <a href="{{ url_for('index', status='discharged', location=location_filter, sort=sort_by, order=sort_order) }}" class="btn btn-outline-warning {% if status_filter == 'discharged' %}active{% endif %}">Discharged</a>
-                <a href="{{ url_for('index', status='emptied', location=location_filter, sort=sort_by, order=sort_order) }}" class="btn btn-outline-info {% if status_filter == 'emptied' %}active{% endif %}">Emptied</a>
-                <a href="{{ url_for('index', status='full', location=location_filter, sort=sort_by, order=sort_order) }}" class="btn btn-outline-primary {% if status_filter == 'full' %}active{% endif %}">Full</a>
+                <a href="{{ url_for('index', location=location_filter, sort=sort_by, order=sort_order) }}" 
+                   class="btn btn-outline-primary {% if not status_filter %}active{% endif %}" data-status="all">All</a>
+                <a href="{{ url_for('index', status='loaded', location=location_filter, sort=sort_by, order=sort_order) }}" 
+                   class="btn btn-outline-success {% if status_filter == 'loaded' %}active{% endif %}" data-status="loaded">Loaded</a>
+                <a href="{{ url_for('index', status='discharged', location=location_filter, sort=sort_by, order=sort_order) }}" 
+                   class="btn btn-outline-warning {% if status_filter == 'discharged' %}active{% endif %}" data-status="discharged">Discharged</a>
+                <a href="{{ url_for('index', status='emptied', location=location_filter, sort=sort_by, order=sort_order) }}" 
+                   class="btn btn-outline-info {% if status_filter == 'emptied' %}active{% endif %}" data-status="emptied">Emptied</a>
+                <a href="{{ url_for('index', status='full', location=location_filter, sort=sort_by, order=sort_order) }}" 
+                   class="btn btn-outline-primary {% if status_filter == 'full' %}active{% endif %}" data-status="full">Full</a>
             </div>
             <form id="global-search-form" action="{{ url_for('index') }}" method="GET" class="d-flex">
                 <input type="hidden" name="location" value="{{ location_filter }}">
@@ -120,13 +125,13 @@
         </div>
     </div>
     <div class="card-body">
-        <div id="status-filter-badge" class="mb-3" style="display: none;">
-            <span class="badge bg-primary">Filtered by: <span id="current-filter">All</span></span>
+        <div id="status-filter-badge" class="mb-3" style="display: {% if status_filter %}block{% else %}none{% endif %};">
+            <span class="badge bg-primary">Filtered by: <span id="current-filter">{{ status_filter|capitalize if status_filter else 'All' }}</span></span>
             <button class="btn btn-sm btn-outline-secondary ms-2" id="clear-filter">Clear Filter</button>
         </div>
         
-        <!-- Add bulk actions toolbar - initially hidden -->
-        <div id="bulk-actions" class="mb-3" style="display: none;">
+        <!-- Bulk actions toolbar - shown when status filter is active and items are selected -->
+        <div id="bulk-actions" class="mb-3" style="display: {% if status_filter in ['loaded', 'discharged', 'emptied', 'full'] %}block{% else %}none{% endif %};">
             <div class="d-flex flex-wrap align-items-center">
                 <div class="me-2">
                     <button type="button" id="select-all" class="btn btn-sm btn-outline-primary">Select All</button>
@@ -137,16 +142,20 @@
                 </div>
                 <div class="ms-auto">
                     <!-- Show different buttons based on the filter -->
-                    <button type="button" id="bulk-load-btn" class="btn btn-success bulk-action-btn" style="display: none;">
+                    <button type="button" id="bulk-load-btn" class="btn btn-success bulk-action-btn" 
+                            style="display: {% if status_filter in ['discharged', 'emptied', 'full'] %}inline-block{% else %}none{% endif %};">
                         <i class="fas fa-ship"></i> Load Selected Containers
                     </button>
-                    <button type="button" id="bulk-discharge-btn" class="btn btn-warning bulk-action-btn" style="display: none;">
+                    <button type="button" id="bulk-discharge-btn" class="btn btn-warning bulk-action-btn"
+                            style="display: {% if status_filter == 'loaded' %}inline-block{% else %}none{% endif %};">
                         <i class="fas fa-anchor"></i> Discharge Selected Containers
                     </button>
-                    <button type="button" id="bulk-emptied-btn" class="btn btn-info bulk-action-btn" style="display: none;">
+                    <button type="button" id="bulk-emptied-btn" class="btn btn-info bulk-action-btn"
+                            style="display: {% if status_filter in ['discharged', 'full'] %}inline-block{% else %}none{% endif %};">
                         <i class="fas fa-box-open"></i> Mark as Emptied
                     </button>
-                    <button type="button" id="bulk-full-btn" class="btn btn-primary bulk-action-btn" style="display: none;">
+                    <button type="button" id="bulk-full-btn" class="btn btn-primary bulk-action-btn"
+                            style="display: {% if status_filter == 'emptied' %}inline-block{% else %}none{% endif %};">
                         <i class="fas fa-box"></i> Mark as Full
                     </button>
                 </div>
@@ -157,7 +166,9 @@
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
-                        <th class="select-column" style="display: none;"><input type="checkbox" id="select-all-checkbox"></th>
+                        <th class="select-column" style="display: {% if status_filter in ['loaded', 'discharged', 'emptied', 'full'] %}table-cell{% else %}none{% endif %};">
+                            <input type="checkbox" id="select-all-checkbox">
+                        </th>
                         <th>Container Number</th>
                         <th>Type</th>
                         <th>Loading Port</th>
@@ -182,12 +193,11 @@
                     {% for movement in container.movements|sort(attribute='operation_date', reverse=true) %}
                         {% if movement.operation_type == 'discharge' and not discharge_date %}
                             {% set discharge_date = movement.operation_date.date() %}
-                            {# Use proper Jinja2 comment instead of break #}
                         {% endif %}
                     {% endfor %}
                     
                     <tr data-status="{{ latest_status.status if latest_status else 'not-set' }}" data-id="{{ container.id }}">
-                        <td class="select-column" style="display: none;">
+                        <td class="select-column" style="display: {% if status_filter in ['loaded', 'discharged', 'emptied', 'full'] %}table-cell{% else %}none{% endif %};">
                             <input type="checkbox" class="container-select" data-id="{{ container.id }}" data-number="{{ container.container_number }}">
                         </td>
                         <td>{{ container.container_number }}</td>
@@ -312,23 +322,19 @@
                             <!-- Vessels will be populated via AJAX to exclude departed vessels -->
                         </select>
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-operation-date" class="form-label">Operation Date</label>
                         <input type="date" class="form-control" id="bulk-operation-date" required 
                                value="{{ now.strftime('%Y-%m-%d') }}">
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-location" class="form-label">Location</label>
                         <input type="text" class="form-control" id="bulk-location" required>
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-notes" class="form-label">Notes (Optional)</label>
                         <textarea class="form-control" id="bulk-notes" rows="3"></textarea>
                     </div>
-                    
                     <div class="alert alert-info">
                         <h6>Selected Containers (<span id="modal-selected-count">0</span>):</h6>
                         <ul id="selected-containers-list" class="mb-0"></ul>
@@ -354,7 +360,6 @@
             <div class="modal-body">
                 <form id="bulk-discharge-form">
                     <input type="hidden" id="bulk-discharge-vessel-id">
-                    
                     <div class="mb-3">
                         <label class="form-label">Vessel Information</label>
                         <div class="alert alert-info" id="bulk-discharge-vessel-info">
@@ -367,17 +372,14 @@
                         <input type="date" class="form-control" id="bulk-discharge-date" required 
                                value="{{ now.strftime('%Y-%m-%d') }}">
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-discharge-location" class="form-label">Location</label>
                         <input type="text" class="form-control" id="bulk-discharge-location" required>
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-discharge-notes" class="form-label">Notes (Optional)</label>
                         <textarea class="form-control" id="bulk-discharge-notes" rows="3"></textarea>
                     </div>
-                    
                     <div class="alert alert-info">
                         <h6>Selected Containers (<span id="modal-discharge-count">0</span>):</h6>
                         <ul id="selected-discharge-containers-list" class="mb-0"></ul>
@@ -407,17 +409,14 @@
                         <input type="date" class="form-control" id="bulk-emptied-date" required 
                                value="{{ now.strftime('%Y-%m-%d') }}">
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-emptied-location" class="form-label">Location</label>
                         <input type="text" class="form-control" id="bulk-emptied-location" required>
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-emptied-notes" class="form-label">Notes (Optional)</label>
                         <textarea class="form-control" id="bulk-emptied-notes" rows="3">Empty Container</textarea>
                     </div>
-                    
                     <div class="alert alert-info">
                         <h6>Selected Containers (<span id="modal-emptied-count">0</span>):</h6>
                         <ul id="selected-emptied-containers-list" class="mb-0"></ul>
@@ -447,17 +446,14 @@
                         <input type="date" class="form-control" id="bulk-full-date" required 
                                value="{{ now.strftime('%Y-%m-%d') }}">
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-full-location" class="form-label">Location</label>
                         <input type="text" class="form-control" id="bulk-full-location" required>
                     </div>
-                    
                     <div class="mb-3">
                         <label for="bulk-full-notes" class="form-label">Notes (Optional)</label>
                         <textarea class="form-control" id="bulk-full-notes" rows="3">Full Container</textarea>
                     </div>
-                    
                     <div class="alert alert-info">
                         <h6>Selected Containers (<span id="modal-full-count">0</span>):</h6>
                         <ul id="selected-full-containers-list" class="mb-0"></ul>
@@ -495,7 +491,7 @@
             });
         }
         
-        // Container search functionality - updated for global search
+        // Container search functionality
         $('#container-search').on('keyup', function(e) {
             if (e.keyCode === 13) {  // Enter key
                 $('#global-search-form').submit();
@@ -506,75 +502,16 @@
         });
         
         // Status filter functionality
-        let currentStatusFilter = 'all';
+        let currentStatusFilter = "{{ status_filter|default('all', true) }}";
         
         // Add click handlers to status filter buttons
-        $('#status-filter-buttons button').on('click', function() {
-            // Update active state
-            $('#status-filter-buttons button').removeClass('active');
-            $(this).addClass('active');
-            
-            // Get the status value
-            currentStatusFilter = $(this).data('status');
-            console.log('Status filter changed to:', currentStatusFilter);
-            
-            // Update the filter badge
-            if (currentStatusFilter === 'all') {
-                $('#status-filter-badge').hide();
-                $('#bulk-actions').hide();
-                $('.select-column').hide();
-            } else {
-                $('#current-filter').text($(this).text());
-                $('#status-filter-badge').show();
-                
-                // Show appropriate bulk actions
-                if (currentStatusFilter === 'discharged' || currentStatusFilter === 'emptied' || 
-                    currentStatusFilter === 'loaded' || currentStatusFilter === 'full') {
-                    $('#bulk-actions').show();
-                    $('.select-column').show();
-                    
-                    // Show appropriate bulk action buttons
-                    $('.bulk-action-btn').hide();
-                    if (currentStatusFilter === 'discharged') {
-                        $('#bulk-load-btn').show();
-                        $('#bulk-emptied-btn').show();
-                    } else if (currentStatusFilter === 'emptied') {
-                        $('#bulk-load-btn').show();
-                        $('#bulk-full-btn').show();
-                    } else if (currentStatusFilter === 'loaded') {
-                        $('#bulk-discharge-btn').show();
-                    } else if (currentStatusFilter === 'full') {
-                        $('#bulk-load-btn').show();
-                        $('#bulk-emptied-btn').show();
-                    }
-                } else {
-                    $('#bulk-actions').hide();
-                    $('.select-column').hide();
-                }
-            }
-            
-            // Clear checkboxes
-            $('.container-select').prop('checked', false);
-            updateSelectedCount();
-            
-            // Apply filter
-            filterContainers();
+        $('#status-filter-buttons a').on('click', function(e) {
+            // Don't do anything here, just let the link work normally
+            // The server-side will handle the filtering
         });
         
         $('#clear-filter').on('click', function() {
-            currentStatusFilter = 'all';
-            $('#status-filter-badge').hide();
-            
-            // Hide bulk actions and selection columns when clearing filter
-            $('#bulk-actions').hide();
-            $('.select-column').hide();
-            $('.bulk-action-btn').hide();
-            
-            // Deselect all when clearing filter
-            $('.container-select').prop('checked', false);
-            updateSelectedCount();
-            
-            filterContainers();
+            window.location.href = "{{ url_for('index', location=location_filter) }}";
         });
         
         // Bulk selection functionality
@@ -601,21 +538,24 @@
         function updateSelectedCount() {
             const selectedCount = $('.container-select:checked').length;
             $('#selected-count').text(selectedCount + ' containers selected');
-            $('#modal-selected-count').text(selectedCount);
             
-            // Update selected containers list in modal
-            const $list = $('#selected-containers-list').empty();
+            // Update containers list in all modals
+            updateModalContainersList('selected-containers-list', 'modal-selected-count');
+            updateModalContainersList('selected-discharge-containers-list', 'modal-discharge-count');
+            updateModalContainersList('selected-emptied-containers-list', 'modal-emptied-count');
+            updateModalContainersList('selected-full-containers-list', 'modal-full-count');
+            
+            // Enable/disable bulk action buttons based on selection
+            $('.bulk-action-btn').prop('disabled', selectedCount === 0);
+        }
+        
+        function updateModalContainersList(listId, countId) {
+            const $list = $('#' + listId).empty();
             $('.container-select:checked').each(function() {
                 const containerNumber = $(this).data('number');
                 $list.append(`<li>${containerNumber}</li>`);
             });
-            
-            // Enable/disable bulk load button
-            if (selectedCount > 0) {
-                $('#bulk-load-btn').prop('disabled', false);
-            } else {
-                $('#bulk-load-btn').prop('disabled', true);
-            }
+            $('#' + countId).text($('.container-select:checked').length);
         }
         
         function filterContainers() {
@@ -630,12 +570,8 @@
                 const status = $row.data('status');
                 
                 let statusMatch = true;
-                if (currentStatusFilter !== 'all') {
-                    if (currentStatusFilter === 'not-set') {
-                        statusMatch = status === 'not-set';
-                    } else {
-                        statusMatch = status === currentStatusFilter;
-                    }
+                if (currentStatusFilter !== 'all' && currentStatusFilter) {
+                    statusMatch = status === currentStatusFilter;
                 }
                 
                 $row.toggle(hasSearchMatch && statusMatch);
@@ -651,14 +587,29 @@
             }
         }
         
-        // Open bulk load modal
+        // Bulk operations modal handlers
         $('#bulk-load-btn').click(function() {
-            // Fetch only available vessels (not departed)
+            loadAvailableVessels();
+            $('#bulkLoadModal').modal('show');
+        });
+        
+        $('#bulk-discharge-btn').click(function() {
+            prepareDischargeModal();
+        });
+        
+        $('#bulk-emptied-btn').click(function() {
+            prepareStatusModal('emptied', 'bulkEmptiedModal');
+        });
+        
+        $('#bulk-full-btn').click(function() {
+            prepareStatusModal('full', 'bulkFullModal');
+        });
+        
+        function loadAvailableVessels() {
             $.ajax({
                 url: '/api/vessels/available',
                 type: 'GET',
                 success: function(vessels) {
-                    // Clear and repopulate vessel select
                     const $select = $('#bulk-vessel-select').empty();
                     $select.append('<option value="">-- Select a vessel --</option>');
                     
@@ -670,32 +621,71 @@
                         });
                     }
                     
-                    // Pre-fill location if all containers are in the same location
-                    let locations = new Set();
-                    $('.container-select:checked').each(function() {
-                        const $row = $(this).closest('tr');
-                        const location = $row.find('td:nth-child(6)').text().trim();
-                        locations.add(location);
-                    });
-                    
-                    if (locations.size === 1) {
-                        $('#bulk-location').val([...locations][0]);
-                    } else {
-                        $('#bulk-location').val('');
-                    }
-                    
-                    // Show the modal
-                    $('#bulkLoadModal').modal('show');
+                    // Pre-fill location with current filter
+                    $('#bulk-location').val("{{ location_filter }}");
                 },
                 error: function(xhr) {
                     alert('Error loading vessels: ' + xhr.responseText);
                 }
             });
-        });
+        }
         
-        // Handle bulk load submission
-        $('#confirm-bulk-load').click(function() {
-            // Validate form
+        function prepareDischargeModal() {
+            const containerIds = getSelectedContainerIds();
+            if (containerIds.length === 0) {
+                alert('Please select at least one container');
+                return;
+            }
+            
+            // Get vessel info from the first container
+            $.ajax({
+                url: '/api/container/' + containerIds[0] + '/vessel',
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        $('#bulk-discharge-vessel-id').val(response.vessel_id);
+                        $('#bulk-discharge-vessel-info').html(`
+                            <strong>Vessel:</strong> ${response.vessel_name}<br>
+                            <strong>Current Location:</strong> ${response.vessel_location || 'Not specified'}
+                        `);
+                        $('#bulk-discharge-location').val(response.vessel_location || "{{ location_filter }}");
+                        $('#bulkDischargeModal').modal('show');
+                    } else {
+                        alert('Error: Selected containers are not on a vessel');
+                    }
+                },
+                error: function(xhr) {
+                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not retrieve vessel information'));
+                }
+            });
+        }
+        
+        function prepareStatusModal(status, modalId) {
+            if (getSelectedContainerIds().length === 0) {
+                alert('Please select at least one container');
+                return;
+            }
+            
+            // Pre-fill location with current filter
+            $(`#bulk-${status}-location`).val("{{ location_filter }}");
+            $(`#${modalId}`).modal('show');
+        }
+        
+        function getSelectedContainerIds() {
+            const containerIds = [];
+            $('.container-select:checked').each(function() {
+                containerIds.push($(this).data('id'));
+            });
+            return containerIds;
+        }
+        
+        // Handle form submissions for bulk operations
+        $('#confirm-bulk-load').click(handleBulkLoad);
+        $('#confirm-bulk-discharge').click(handleBulkDischarge);
+        $('#confirm-bulk-emptied').click(function() { handleBulkStatus('emptied'); });
+        $('#confirm-bulk-full').click(function() { handleBulkStatus('full'); });
+        
+        function handleBulkLoad() {
             const vesselId = $('#bulk-vessel-select').val();
             const date = $('#bulk-operation-date').val();
             const location = $('#bulk-location').val();
@@ -706,93 +696,16 @@
                 return;
             }
             
-            // Collect all selected container IDs
-            const containerIds = [];
-            $('.container-select:checked').each(function() {
-                containerIds.push($(this).data('id'));
-            });
-            
-            // Send to server
-            $.ajax({
-                url: '/containers/bulk-load',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    container_ids: containerIds,
-                    vessel_id: vesselId,
-                    operation_date: date,
-                    location: location,
-                    notes: notes
-                }),
-                success: function(response) {
-                    // Hide modal
-                    $('#bulkLoadModal').modal('hide');
-                    
-                    // Show success message
-                    alert('Successfully loaded ' + response.success_count + ' containers!');
-                    
-                    // Refresh the page
-                    window.location.reload();
-                },
-                error: function(xhr) {
-                    alert('Error: ' + xhr.responseJSON.error);
-                }
-            });
-        });
+            performBulkOperation('/containers/bulk-load', {
+                container_ids: getSelectedContainerIds(),
+                vessel_id: vesselId,
+                operation_date: date,
+                location: location,
+                notes: notes
+            }, 'bulkLoadModal');
+        }
         
-        // Bulk discharge functionality
-        $('#bulk-discharge-btn').click(function() {
-            // Get vessel info for the first container
-            const containerIds = [];
-            $('.container-select:checked').each(function() {
-                containerIds.push($(this).data('id'));
-            });
-            
-            if (containerIds.length === 0) {
-                alert('Please select at least one container');
-                return;
-            }
-            
-            // Fetch vessel info for the first container
-            $.ajax({
-                url: '/api/container/' + containerIds[0] + '/vessel',
-                type: 'GET',
-                success: function(response) {
-                    if (response.success) {
-                        // Store vessel ID in hidden field
-                        $('#bulk-discharge-vessel-id').val(response.vessel_id);
-                        
-                        // Display vessel info
-                        $('#bulk-discharge-vessel-info').html(`
-                            <strong>Vessel:</strong> ${response.vessel_name}<br>
-                            <strong>Current Location:</strong> ${response.vessel_location || 'Not specified'}
-                        `);
-                        
-                        // Pre-fill location with vessel's current location
-                        $('#bulk-discharge-location').val(response.vessel_location || '');
-                        
-                        // Update selected containers list in modal
-                        const $list = $('#selected-discharge-containers-list').empty();
-                        $('.container-select:checked').each(function() {
-                            $list.append(`<li>${$(this).data('number')}</li>`);
-                        });
-                        $('#modal-discharge-count').text($('.container-select:checked').length);
-                        
-                        // Show the modal
-                        $('#bulkDischargeModal').modal('show');
-                    } else {
-                        alert('Error: Selected containers are not on a vessel');
-                    }
-                },
-                error: function(xhr) {
-                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not retrieve vessel information'));
-                }
-            });
-        });
-        
-        // Handle bulk discharge submission
-        $('#confirm-bulk-discharge').click(function() {
-            // Validate form
+        function handleBulkDischarge() {
             const vesselId = $('#bulk-discharge-vessel-id').val();
             const date = $('#bulk-discharge-date').val();
             const location = $('#bulk-discharge-location').val();
@@ -803,187 +716,55 @@
                 return;
             }
             
-            // Collect all selected container IDs
-            const containerIds = [];
-            $('.container-select:checked').each(function() {
-                containerIds.push($(this).data('id'));
-            });
-            
-            // Send to server
-            $.ajax({
-                url: '/containers/bulk-discharge',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    container_ids: containerIds,
-                    vessel_id: vesselId,
-                    operation_date: date,
-                    location: location,
-                    notes: notes
-                }),
-                success: function(response) {
-                    // Hide modal
-                    $('#bulkDischargeModal').modal('hide');
-                    
-                    // Show success message
-                    alert('Successfully discharged ' + response.success_count + ' containers!');
-                    
-                    // Refresh the page
-                    window.location.reload();
-                },
-                error: function(xhr) {
-                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not process bulk discharge'));
-                }
-            });
-        });
+            performBulkOperation('/containers/bulk-discharge', {
+                container_ids: getSelectedContainerIds(),
+                vessel_id: vesselId,
+                operation_date: date,
+                location: location,
+                notes: notes
+            }, 'bulkDischargeModal');
+        }
         
-        // Open bulk emptied modal
-        $('#bulk-emptied-btn').click(function() {
-            // Pre-fill location if all containers are in the same location
-            let locations = new Set();
-            $('.container-select:checked').each(function() {
-                const $row = $(this).closest('tr');
-                const location = $row.find('td:nth-child(6)').text().trim();
-                locations.add(location);
-            });
-            
-            if (locations.size === 1) {
-                $('#bulk-emptied-location').val([...locations][0]);
-            } else {
-                $('#bulk-emptied-location').val('');
-            }
-            
-            // Update selected containers list in modal
-            const $list = $('#selected-emptied-containers-list').empty();
-            $('.container-select:checked').each(function() {
-                const containerNumber = $(this).data('number');
-                $list.append(`<li>${containerNumber}</li>`);
-            });
-            $('#modal-emptied-count').text($('.container-select:checked').length);
-            
-            // Show the modal
-            $('#bulkEmptiedModal').modal('show');
-        });
-        
-        // Handle bulk emptied submission
-        $('#confirm-bulk-emptied').click(function() {
-            // Validate form
-            const date = $('#bulk-emptied-date').val();
-            const location = $('#bulk-emptied-location').val();
-            const notes = $('#bulk-emptied-notes').val();
+        function handleBulkStatus(status) {
+            const date = $(`#bulk-${status}-date`).val();
+            const location = $(`#bulk-${status}-location`).val();
+            const notes = $(`#bulk-${status}-notes`).val();
             
             if (!date || !location) {
                 alert('Please fill in all required fields');
                 return;
             }
             
-            // Collect all selected container IDs
-            const containerIds = [];
-            $('.container-select:checked').each(function() {
-                containerIds.push($(this).data('id'));
-            });
-            
-            // Send to server
+            performBulkOperation('/containers/bulk-status-update', {
+                container_ids: getSelectedContainerIds(),
+                status: status,
+                date: date,
+                location: location,
+                notes: notes
+            }, `bulk${status.charAt(0).toUpperCase() + status.slice(1)}Modal`);
+        }
+        
+        function performBulkOperation(url, data, modalId) {
             $.ajax({
-                url: '/containers/bulk-status-update',
+                url: url,
                 type: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify({
-                    container_ids: containerIds,
-                    status: 'emptied',
-                    date: date,
-                    location: location,
-                    notes: notes
-                }),
+                data: JSON.stringify(data),
                 success: function(response) {
-                    // Hide modal
-                    $('#bulkEmptiedModal').modal('hide');
-                    
-                    // Show success message
-                    alert('Successfully updated ' + response.success_count + ' containers!');
-                    
-                    // Refresh the page
+                    $(`#${modalId}`).modal('hide');
+                    alert(response.message || `Operation completed successfully for ${response.success_count} containers!`);
                     window.location.reload();
                 },
                 error: function(xhr) {
-                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.error : 'Could not process status update'));
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.error : 'Operation failed';
+                    alert('Error: ' + errorMsg);
                 }
             });
-        });
+        }
         
-        // Open bulk full modal
-        $('#bulk-full-btn').click(function() {
-            // Pre-fill location if all containers are in the same location
-            let locations = new Set();
-            $('.container-select:checked').each(function() {
-                const $row = $(this).closest('tr');
-                const location = $row.find('td:nth-child(6)').text().trim();
-                locations.add(location);
-            });
-            
-            if (locations.size === 1) {
-                $('#bulk-full-location').val([...locations][0]);
-            } else {
-                $('#bulk-full-location').val('');
-            }
-            
-            // Update selected containers list in modal
-            const $list = $('#selected-full-containers-list').empty();
-            $('.container-select:checked').each(function() {
-                const containerNumber = $(this).data('number');
-                $list.append(`<li>${containerNumber}</li>`);
-            });
-            $('#modal-full-count').text($('.container-select:checked').length);
-            
-            // Show the modal
-            $('#bulkFullModal').modal('show');
-        });
-        
-        // Handle bulk full submission
-        $('#confirm-bulk-full').click(function() {
-            // Validate form
-            const date = $('#bulk-full-date').val();
-            const location = $('#bulk-full-location').val();
-            const notes = $('#bulk-full-notes').val();
-            
-            if (!date || !location) {
-                alert('Please fill in all required fields');
-                return;
-            }
-            
-            // Collect all selected container IDs
-            const containerIds = [];
-            $('.container-select:checked').each(function() {
-                containerIds.push($(this).data('id'));
-            });
-            
-            // Send to server
-            $.ajax({
-                url: '/containers/bulk-status-update',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    container_ids: containerIds,
-                    status: 'full',
-                    date: date,
-                    location: location,
-                    notes: notes
-                }),
-                success: function(response) {
-                    // Hide modal
-                    $('#bulkFullModal').modal('hide');
-                    
-                    // Show success message
-                    alert('Successfully updated ' + response.success_count + ' containers!');
-                    
-                    // Refresh the page
-                    window.location.reload();
-                }
-            });
-        });
-        
-        // Initial update
+        // Initialize on page load
         updateDashboardCounts();
+        updateSelectedCount();
     });
 </script>
 {% endblock %}
