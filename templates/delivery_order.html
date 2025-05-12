@@ -1880,6 +1880,112 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Synchronize all fields before printing
+    window.addEventListener('beforeprint', syncAllFields);
+    
+    // Function to synchronize all form fields from original to copies
+    function syncAllFields() {
+        // First synchronize the table rows to ensure the structure matches
+        syncTableRows();
+        
+        // Then synchronize all editable fields from original receipt
+        const originalFields = document.querySelectorAll('.receipt:not(.receipt-duplicate):not(.receipt-terminal) .editable-field');
+        
+        originalFields.forEach((field, index) => {
+            // Find corresponding fields in both copies by position
+            const copySelectors = [
+                '.receipt-duplicate .editable-field',
+                '.receipt-terminal .editable-field'
+            ];
+            
+            copySelectors.forEach(selector => {
+                const copyFields = document.querySelectorAll(selector);
+                // If there's a corresponding field at the same position, update it
+                if (copyFields[index]) {
+                    copyFields[index].textContent = field.textContent;
+                }
+            });
+        });
+        
+        // Function to synchronize table structure and rows
+        function syncTableRows() {
+            // Get the original table and its rows
+            const originalTable = document.getElementById('packages-table');
+            const originalRows = originalTable.querySelectorAll('tbody tr');
+            
+            // Get the copy tables
+            const copyTable = document.getElementById('packages-table-copy');
+            const terminalTable = document.getElementById('packages-table-terminal');
+            
+            // Clear existing rows from copies (except for the special footer row)
+            const copyFooterRow = copyTable.querySelector('.special-footer-row');
+            const terminalFooterRow = terminalTable.querySelector('.special-footer-row');
+            
+            // Remove all rows except the footer from copy tables
+            while (copyTable.querySelector('tbody').firstChild !== copyFooterRow) {
+                copyTable.querySelector('tbody').removeChild(
+                    copyTable.querySelector('tbody').firstChild
+                );
+            }
+            
+            while (terminalTable.querySelector('tbody').firstChild !== terminalFooterRow) {
+                terminalTable.querySelector('tbody').removeChild(
+                    terminalTable.querySelector('tbody').firstChild
+                );
+            }
+            
+            // Clone and add rows from original to copies (except special footer)
+            originalRows.forEach(row => {
+                if (!row.classList.contains('special-footer-row')) {
+                    // Clone the row for each copy
+                    const copyRow = row.cloneNode(true);
+                    const terminalRow = row.cloneNode(true);
+                    
+                    // Remove any event listeners from cloned rows by replacing elements
+                    copyRow.querySelectorAll('.editable-field').forEach(field => {
+                        const newField = field.cloneNode(true);
+                        field.parentNode.replaceChild(newField, field);
+                    });
+                    
+                    terminalRow.querySelectorAll('.editable-field').forEach(field => {
+                        const newField = field.cloneNode(true);
+                        field.parentNode.replaceChild(newField, field);
+                    });
+                    
+                    // Remove any delete buttons from copies
+                    copyRow.querySelectorAll('.delete-row-btn').forEach(btn => btn.remove());
+                    terminalRow.querySelectorAll('.delete-row-btn').forEach(btn => btn.remove());
+                    
+                    // Insert before the footer row
+                    copyTable.querySelector('tbody').insertBefore(copyRow, copyFooterRow);
+                    terminalTable.querySelector('tbody').insertBefore(terminalRow, terminalFooterRow);
+                }
+            });
+        }
+        
+        // Also sync date picker values
+        const originalDatePicker = document.querySelector('.receipt:not(.receipt-duplicate):not(.receipt-terminal) .date-picker');
+        if (originalDatePicker) {
+            const datePickers = [
+                document.querySelector('.receipt-duplicate .date-picker'),
+                document.querySelector('.receipt-terminal .date-picker')
+            ];
+            
+            datePickers.forEach(datePicker => {
+                if (datePicker) datePicker.value = originalDatePicker.value;
+            });
+        }
+        
+        // Sync the DO numbers across all copies
+        const doNumber = document.getElementById('delivery-order-number').textContent;
+        
+        const duplicateDoNumber = document.getElementById('delivery-order-number-copy');
+        if (duplicateDoNumber) duplicateDoNumber.textContent = doNumber;
+        
+        const terminalDoNumber = document.getElementById('delivery-order-number-terminal');
+        if (terminalDoNumber) terminalDoNumber.textContent = doNumber;
+    }
+    
     // Set up container number field behaviors
     setupContainerFieldBehaviors();
     
