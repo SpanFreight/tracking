@@ -1577,13 +1577,27 @@
                             // Build the dropdown content - matching containers only
                             let html = '';
                             results.forEach((container, index) => {
+                                // Check for actual matches with the container's properties
+                                const hasSameBL = currentBL && container.bl_number && container.bl_number === currentBL;
+                                const hasSameVessel = currentVesselName && container.vessel_name && container.vessel_name === currentVesselName;
+                                const hasSameVoyage = currentVoyageNumber && container.voyage_number && container.voyage_number === currentVoyageNumber;
+                                
+                                // Log values for debugging
+                                console.log(`Container ${container.container_number}:`, {
+                                    currentBL, containerBL: container.bl_number,
+                                    currentVesselName, containerVessel: container.vessel_name,
+                                    currentVoyageNumber, containerVoyage: container.voyage_number,
+                                    hasSameBL, hasSameVessel, hasSameVoyage
+                                });
+                                
                                 html += `
                                     <div class="autocomplete-item" data-index="${index}">
                                         <strong>${container.container_number}</strong>
                                         <div class="container-number-details">
-                                            ${container.container_type} | BL: ${container.bl_number}
-                                            ${currentBL ? '<span class="badge bg-success ms-1">Same BL</span>' : ''}
-                                            ${currentVesselName && currentVoyageNumber ? '<span class="badge bg-primary ms-1">Same Vessel</span>' : ''}
+                                            ${container.container_type} | BL: ${container.bl_number || 'N/A'}
+                                            ${hasSameBL ? '<span class="badge bg-success ms-1">Same BL</span>' : ''}
+                                            ${hasSameVessel ? '<span class="badge bg-primary ms-1">Same Vessel</span>' : ''}
+                                            ${hasSameVoyage ? '<span class="badge bg-info ms-1">Same Voyage</span>' : ''}
                                         </div>
                                     </div>
                                 `;

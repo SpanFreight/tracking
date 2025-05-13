@@ -1011,7 +1011,7 @@ def update_status(id):
             container.bl_number = request.form.get('bl_number', '')
             # Parse arrival date if provided
             if request.form.get('arrival_date'):
-                container.arrival_date = datetime.strptime(request.form.get('arrival_date'), '%Y-%m-%d')
+                container.arrival_date = datetime.strptime(request.form['arrival_date'], '%Y-%m-%d')
             else:
                 container.arrival_date = None
             # Parse stripping date if provided
@@ -3212,14 +3212,40 @@ def search_containers_for_delivery(search_term):
     # Convert to dict for JSON response
     result = []
     for container in containers:
-        result.append({
+        # Find the vessel info for this container
+        vessel_info = get_container_vessel_info_for_search(container.id)
+        
+        container_data = {
             'id': container.id,
             'container_number': container.container_number,
             'container_type': container.container_type or 'Unknown',
-            'bl_number': container.bl_number or 'N/A'
-        })
+            'bl_number': container.bl_number or 'N/A',
+            'vessel_name': vessel_info.get('vessel_name'),
+            'voyage_number': vessel_info.get('voyage_number')
+        }
+        result.append(container_data)
     
     return jsonify(result)
+
+# Helper function to get vessel info for a container
+def get_container_vessel_info_for_search(container_id):
+    # Find the most recent vessel movement for this container
+    movement = ContainerMovement.query.filter_by(
+        container_id=container_id
+    ).order_by(ContainerMovement.operation_date.desc()).first()
+    
+    result = {
+        'vessel_name': None,
+        'voyage_number': None
+    }
+    
+    if movement:
+        vessel = Vessel.query.get(movement.vessel_id)
+        if vessel:
+            result['vessel_name'] = vessel.name
+            result['voyage_number'] = vessel.imo_number
+            
+    return result
 
 @app.route('/admin/delivery-orders')
 @login_required
