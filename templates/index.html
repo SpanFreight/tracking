@@ -116,6 +116,8 @@
                 <input type="hidden" name="location" value="{{ location_filter }}">
                 <input type="hidden" name="sort" value="{{ sort_by }}">
                 <input type="hidden" name="order" value="{{ sort_order }}">
+                <!-- Add status filter as a hidden field -->
+                <input type="hidden" name="status" value="{{ status_filter }}">
                 <input type="text" id="container-search" name="search" class="form-control" 
                        placeholder="Search containers..." value="{{ request.args.get('search', '') }}">
                 <button type="submit" class="btn btn-primary ms-2">
