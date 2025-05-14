@@ -560,6 +560,26 @@ def index():
         ))\
         .count()
     
+    # Query for emptied containers count
+    total_emptied_count = db.session.query(Container)\
+        .join(latest_status_subquery, Container.id == latest_status_subquery.c.container_id)\
+        .join(ContainerStatus, db.and_(
+            ContainerStatus.container_id == latest_status_subquery.c.container_id,
+            ContainerStatus.created_at == latest_status_subquery.c.max_date,
+            ContainerStatus.status == 'emptied'
+        ))\
+        .count()
+        
+    # Query for full containers count
+    total_full_count = db.session.query(Container)\
+        .join(latest_status_subquery, Container.id == latest_status_subquery.c.container_id)\
+        .join(ContainerStatus, db.and_(
+            ContainerStatus.container_id == latest_status_subquery.c.container_id,
+            ContainerStatus.created_at == latest_status_subquery.c.max_date,
+            ContainerStatus.status == 'full'
+        ))\
+        .count()
+    
     return render_template('index.html', 
                           containers=containers, 
                           vessels=vessels, 
@@ -578,7 +598,9 @@ def index():
                           # Add the total counts for the entire database
                           total_container_count=total_container_count,
                           total_loaded_count=total_loaded_count,
-                          total_discharged_count=total_discharged_count)
+                          total_discharged_count=total_discharged_count,
+                          total_emptied_count=total_emptied_count,  # Add this line
+                          total_full_count=total_full_count)         # Add this line
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

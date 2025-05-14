@@ -3,28 +3,56 @@
 {% block content %}
 <h1 class="mb-4">Container Tracking Dashboard</h1>
 
+<!-- Add custom CSS for equal width cards -->
+<style>
+    @media (min-width: 992px) {
+        .col-lg-fifth {
+            flex: 0 0 20%;
+            max-width: 20%;
+        }
+    }
+</style>
+
 <div class="row mb-4">
-    <div class="col-md-4">
-        <div class="card bg-primary text-white">
+    <div class="col-md-4 col-lg-fifth mb-2 mb-lg-0">
+        <div class="card bg-primary text-white h-100">
             <div class="card-body">
                 <h5 class="card-title">Total Containers</h5>
                 <h2 class="card-text">{{ total_container_count }}</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-success text-white">
+    <div class="col-md-4 col-lg-fifth mb-2 mb-lg-0">
+        <div class="card bg-success text-white h-100">
             <div class="card-body">
                 <h5 class="card-title">Loaded Containers</h5>
                 <h2 class="card-text">{{ total_loaded_count }}</h2>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card bg-warning text-dark">
+    <div class="col-md-4 col-lg-fifth mb-2 mb-lg-0">
+        <div class="card bg-warning text-dark h-100">
             <div class="card-body">
                 <h5 class="card-title">Discharged Containers</h5>
                 <h2 class="card-text">{{ total_discharged_count }}</h2>
+            </div>
+        </div>
+    </div>
+    <!-- New card for Emptied Containers -->
+    <div class="col-md-4 col-lg-fifth mb-2 mb-lg-0">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Emptied Containers</h5>
+                <h2 class="card-text">{{ total_emptied_count|default(0) }}</h2>
+            </div>
+        </div>
+    </div>
+    <!-- New card for Full Containers -->
+    <div class="col-md-4 col-lg-fifth mb-2 mb-lg-0">
+        <div class="card bg-primary text-white h-100" style="background-color: #7952B3 !important;">
+            <div class="card-body">
+                <h5 class="card-title">Full Containers</h5>
+                <h2 class="card-text">{{ total_full_count|default(0) }}</h2>
             </div>
         </div>
     </div>
@@ -110,7 +138,7 @@
                 <a href="{{ url_for('index', status='emptied', location=location_filter, sort=sort_by, order=sort_order) }}" 
                    class="btn btn-outline-info {% if status_filter == 'emptied' %}active{% endif %}" data-status="emptied">Emptied</a>
                 <a href="{{ url_for('index', status='full', location=location_filter, sort=sort_by, order=sort_order) }}" 
-                   class="btn btn-outline-primary {% if status_filter == 'full' %}active{% endif %}" data-status="full">Full</a>
+                   class="btn btn-outline-primary {% if status_filter == 'full' %}active{% endif %}"  data-status="full">Full</a>
             </div>
             <form id="global-search-form" action="{{ url_for('index') }}" method="GET" class="d-flex">
                 <input type="hidden" name="location" value="{{ location_filter }}">
@@ -480,16 +508,21 @@
                 let loaded = 0;
                 let discharged = 0;
                 let emptied = 0;
+                let full = 0;
                 
                 data.forEach(container => {
                     if (container.current_status === 'loaded') loaded++;
                     if (container.current_status === 'discharged') discharged++;
                     if (container.current_status === 'emptied') emptied++;
+                    if (container.current_status === 'full') full++;
                 });
                 
-                $('#loaded-count').text(loaded);
-                $('#discharged-count').text(discharged);
-                $('#emptied-count').text(emptied);
+                // Update the card text values with current counts
+                $('.card-body:contains("Total Containers")').find('.card-text').text(data.length);
+                $('.card-body:contains("Loaded")').find('.card-text').text(loaded);
+                $('.card-body:contains("Discharged")').find('.card-text').text(discharged);
+                $('.card-body:contains("Emptied")').find('.card-text').text(emptied);
+                $('.card-body:contains("Full")').find('.card-text').text(full);
             });
         }
         
