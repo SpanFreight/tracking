@@ -817,10 +817,33 @@ def add_container():
                                         
                                         # Handle vessel information if provided
                                         if 'vessel' in batch_df.columns and not pd.isna(row.get('vessel')):
-                                            vessel_name = str(row.get('vessel')).strip()
-                                            if vessel_name:
-                                                # Look up vessel by name
-                                                vessel = Vessel.query.filter(Vessel.name.ilike(vessel_name)).first()
+                                            vessel_input = str(row.get('vessel')).strip()
+                                            if vessel_input:
+                                                # Parse vessel name and voyage number from format "VESSEL NAME V1234"
+                                                voyage_number = None
+                                                vessel_name = vessel_input
+                                                
+                                                # Check for the format with "V" followed by digits
+                                                import re
+                                                voyage_match = re.search(r'V(\d+)$', vessel_input)
+                                                if voyage_match:
+                                                    # Extract the voyage number (without the "V")
+                                                    voyage_number = voyage_match.group(1)
+                                                    # Extract the vessel name (everything before the "V" and number)
+                                                    vessel_name = vessel_input[:voyage_match.start()].strip()
+                                                
+                                                # First try to find vessel by name and voyage number if available
+                                                vessel = None
+                                                if voyage_number:
+                                                    vessel = Vessel.query.filter(
+                                                        Vessel.name.ilike(vessel_name),
+                                                        Vessel.imo_number == voyage_number
+                                                    ).first()
+                                                
+                                                # If not found with voyage, try just the name
+                                                if not vessel:
+                                                    vessel = Vessel.query.filter(Vessel.name.ilike(vessel_name)).first()
+                                                
                                                 if vessel and status_date and status == 'loaded':
                                                     # If status is "loaded" and we have a vessel, create a movement record
                                                     movement = ContainerMovement(
@@ -1011,7 +1034,7 @@ def update_status(id):
             container.bl_number = request.form.get('bl_number', '')
             # Parse arrival date if provided
             if request.form.get('arrival_date'):
-                container.arrival_date = datetime.strptime(request.form['arrival_date'], '%Y-%m-%d')
+                container.arrival_date = datetime.strptime(request.form.get('arrival_date'), '%Y-%m-%d')
             else:
                 container.arrival_date = None
             # Parse stripping date if provided
@@ -3212,40 +3235,14 @@ def search_containers_for_delivery(search_term):
     # Convert to dict for JSON response
     result = []
     for container in containers:
-        # Find the vessel info for this container
-        vessel_info = get_container_vessel_info_for_search(container.id)
-        
-        container_data = {
+        result.append({
             'id': container.id,
             'container_number': container.container_number,
             'container_type': container.container_type or 'Unknown',
-            'bl_number': container.bl_number or 'N/A',
-            'vessel_name': vessel_info.get('vessel_name'),
-            'voyage_number': vessel_info.get('voyage_number')
-        }
-        result.append(container_data)
+            'bl_number': container.bl_number or 'N/A'
+        })
     
     return jsonify(result)
-
-# Helper function to get vessel info for a container
-def get_container_vessel_info_for_search(container_id):
-    # Find the most recent vessel movement for this container
-    movement = ContainerMovement.query.filter_by(
-        container_id=container_id
-    ).order_by(ContainerMovement.operation_date.desc()).first()
-    
-    result = {
-        'vessel_name': None,
-        'voyage_number': None
-    }
-    
-    if movement:
-        vessel = Vessel.query.get(movement.vessel_id)
-        if vessel:
-            result['vessel_name'] = vessel.name
-            result['voyage_number'] = vessel.imo_number
-            
-    return result
 
 @app.route('/admin/delivery-orders')
 @login_required

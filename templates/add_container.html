@@ -67,7 +67,7 @@
                         <select class="form-select" id="vessel_id" name="vessel_id">
                             <option value="">-- Select Vessel --</option>
                             {% for vessel in vessels %}
-                            <option value="{{ vessel.id }}">{{ vessel.name }} (IMO: {{ vessel.imo_number }})</option>
+                            <option value="{{ vessel.id }}">{{ vessel.name }} (Voyage: {{ vessel.imo_number }})</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -167,7 +167,7 @@
                                                 <li class="list-group-item"><code>opr</code> - OPR information</li>
                                                 <li class="list-group-item"><code>arrival_date</code> - Expected arrival date (YYYY-MM-DD)</li>
                                                 <li class="list-group-item"><code>bl_number</code> - Bill of Lading number</li>
-                                                <li class="list-group-item"><code>vessel</code> - Name of the vessel transporting the container</li>
+                                                <li class="list-group-item"><code>vessel</code> - Name and voyage of the vessel (format: "VESSEL NAME V1234" where V1234 is the voyage number)</li>
                                                 <li class="list-group-item"><code>stripping_date</code> - Date when container is expected to be unloaded/stripped (automatically set when discharged from vessel)</li>
                                                 <li class="list-group-item"><code>status</code> - Current status (loaded, discharged, emptied, full)</li>
                                                 <li class="list-group-item"><code>date</code> - Date of status (YYYY-MM-DD)</li>
