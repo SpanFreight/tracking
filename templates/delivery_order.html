@@ -1021,7 +1021,7 @@
             </button>
             
             <!-- Enhanced Close Button -->
-            <button id="closeBtn" onclick="window.close(); return false;" class="btn btn-lg btn-outline-secondary shadow-sm d-flex align-items-center" style="min-width: 120px; transition: all 0.3s ease;">
+            <button id="closeBtn" class="btn btn-lg btn-outline-secondary shadow-sm d-flex align-items-center" style="min-width: 120px; transition: all 0.3s ease;">
                 <i class="fas fa-times-circle me-2" style="font-size: 1.2rem;"></i>
                 <span>Close</span>
             </button>
@@ -1886,9 +1886,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (closeBtn) {
         closeBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            if (window.opener && !window.opener.closed) {
-                window.close();
+            // First try to navigate back if there's history
+            if (window.history.length > 1) {
+                window.history.back();
             } else {
+                // If no history, redirect to the container detail page
                 window.location.href = "{{ url_for('container_detail', id=container.id) }}";
             }
         });
