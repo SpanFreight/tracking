@@ -369,8 +369,8 @@ def index():
     status_filter = request.args.get('status', '')
     
     # Get sorting parameters from the request
-    sort_by = request.args.get('sort', 'created_at')  # Default sort by creation date
-    sort_order = request.args.get('order', 'desc')    # Default to descending order
+    sort_by = request.args.get('sort', 'arrival_date')  # Changed default to arrival_date
+    sort_order = request.args.get('order', 'desc')    # Default to descending order for newest first
     
     # Get search parameter
     search_term = request.args.get('search', '').strip()
@@ -428,6 +428,22 @@ def index():
                     all_containers_query = Container.query.order_by(Container.container_type.desc())
                 else:
                     all_containers_query = Container.query.order_by(Container.container_type)
+            elif sort_by == 'arrival_date':
+                # Sort by arrival_date with special handling for NULL values
+                if sort_order == 'desc':
+                    # For descending order, put NULL values last (oldest)
+                    # Updated syntax: pass tuples directly as positional arguments, not in a list
+                    all_containers_query = Container.query.order_by(
+                        db.case((Container.arrival_date == None, 2), else_=1),
+                        Container.arrival_date.desc()
+                    )
+                else:
+                    # For ascending order, put NULL values first (oldest)
+                    # Updated syntax: pass tuples directly as positional arguments, not in a list
+                    all_containers_query = Container.query.order_by(
+                        db.case((Container.arrival_date == None, 0), else_=1),
+                        Container.arrival_date
+                    )
             else:  # Default to created_at
                 if sort_order == 'desc':
                     all_containers_query = Container.query.order_by(Container.created_at.desc())
@@ -1642,7 +1658,27 @@ def update_vessel(id):
         vessel.current_destination = request.form.get('current_destination', '')
         new_status = request.form.get('status', 'En Route')
         
-        # Handle vessel status change from Departed to Arrived
+        # Handle vessel status change to Arrived from any other status
+        if original_status != 'Arrived' and new_status == 'Arrived':
+            # Update current location to destination if available
+            if vessel.current_destination:
+                vessel.current_location = vessel.current_destination
+                vessel.current_destination = "---"
+            
+            # Update arrival date for all containers on this vessel
+            loaded_containers = vessel.get_loaded_containers()
+            container_count = 0
+            for container in loaded_containers:
+                container.arrival_date = vessel.eta or datetime.now()
+                container_count += 1
+            
+            if container_count > 0:
+                flash(f'Updated arrival date for {container_count} containers to match vessel arrival.', 'info')
+            
+            # Update locations for all containers on this vessel
+            # ...existing code...
+        
+        # Handle vessel status change from Departed to Arrived (keep existing code)
         if original_status == 'Departed' and new_status == 'Arrived':
             # Update current location to destination if available
             if vessel.current_destination:
@@ -2047,7 +2083,17 @@ def update_vessel_statuses():
             if vessel.current_destination:
                 vessel.current_location = vessel.current_destination
                 vessel.current_destination = "---"
-        db.session.commit()
+            
+            # Update arrival date for all containers on this vessel
+            loaded_containers = vessel.get_loaded_containers()
+            container_count = 0
+            for container in loaded_containers:
+                container.arrival_date = vessel.eta or today
+                container_count += 1
+            
+            if container_count > 0:
+                logger.info(f"Updated arrival date for {container_count} containers on vessel {vessel.name} to {vessel.eta or today}")
+            
     if updated_count > 0:
         db.session.commit()
         flash(f'Updated status for {updated_count} vessels based on ETA', 'info')
@@ -2067,6 +2113,13 @@ def update_vessel_statuses_auto(vessel_id=None):
                 if vessel.current_destination:
                     vessel.current_location = vessel.current_destination
                     vessel.current_destination = "---"
+                
+                # Update arrival date for all containers on this vessel
+                loaded_containers = vessel.get_loaded_containers()
+                for container in loaded_containers:
+                    container.arrival_date = vessel.eta or today
+                    logger.info(f"Updated arrival date for container {container.container_number} to match vessel {vessel.name}'s arrival")
+                
                 updated = True
         else:
             # Update all vessels otherwise
@@ -2078,6 +2131,17 @@ def update_vessel_statuses_auto(vessel_id=None):
                     if vessel.current_destination:
                         vessel.current_location = vessel.current_destination
                         vessel.current_destination = "---"
+                    
+                    # Update arrival date for all containers on this vessel
+                    loaded_containers = vessel.get_loaded_containers()
+                    container_count = 0
+                    for container in loaded_containers:
+                        container.arrival_date = vessel.eta or today
+                        container_count += 1
+                    
+                    if container_count > 0:
+                        logger.info(f"Updated arrival date for {container_count} containers on vessel {vessel.name} to {vessel.eta or today}")
+                    
                     updated = True
         
         # Commit if any changes were made

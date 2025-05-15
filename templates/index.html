@@ -120,10 +120,11 @@
                     <span class="me-1">Status</span>
                     <i class="fas fa-sort-{{ 'up' if sort_by == 'status' and sort_order == 'asc' else 'down' }} ms-1"></i>
                 </a>
-                <a href="{{ url_for('index', location=location_filter, sort='created_at', order='asc' if sort_by == 'created_at' and sort_order == 'desc' else 'desc') }}" 
-                   class="btn {{ 'btn-dark' if sort_by == 'created_at' else 'btn-outline-dark' }} d-flex align-items-center">
+                <!-- Add a new sort option for Arrival Date -->
+                <a href="{{ url_for('index', location=location_filter, sort='arrival_date', order='asc' if sort_by == 'arrival_date' and sort_order == 'desc' else 'desc') }}" 
+                   class="btn {{ 'btn-dark' if sort_by == 'arrival_date' else 'btn-outline-dark' }} d-flex align-items-center">
                     <span class="me-1">Date</span>
-                    <i class="fas fa-sort-{{ 'up' if sort_by == 'created_at' and sort_order == 'asc' else 'down' }} ms-1"></i>
+                    <i class="fas fa-sort-{{ 'up' if sort_by == 'arrival_date' and sort_order == 'asc' else 'down' }} ms-1"></i>
                 </a>
             </div>
         </div>
