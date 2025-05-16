@@ -3687,6 +3687,27 @@ def admin_reports():
         ).scalar() or 0
     }
     
+    # Add client statistics
+    client_count = Client.query.count()
+    
+    # Get clients with their container counts
+    clients_with_containers = []
+    for client in Client.query.all():
+        container_count = Container.query.filter_by(client_id=client.id).count()
+        if container_count > 0:  # Only include clients with containers
+            clients_with_containers.append({
+                'id': client.id,
+                'name': client.name,
+                'contact_person': client.contact_person,
+                'container_count': container_count
+            })
+    
+    # Sort clients by container count (descending)
+    clients_with_containers.sort(key=lambda x: x['container_count'], reverse=True)
+    
+    # Take top 10 clients
+    top_clients = clients_with_containers[:10]
+    
     return render_template('admin/reports.html',
                           total_container_count=total_container_count,
                           total_vessel_count=total_vessel_count,
@@ -3695,7 +3716,10 @@ def admin_reports():
                           movement_counts=movement_counts,
                           top_locations=top_locations,
                           monthly_summary=monthly_summary,
-                          stats_180_days=stats_180_days)
+                          stats_180_days=stats_180_days,
+                          # Add client data
+                          client_count=client_count,
+                          top_clients=top_clients)
 
 # Add API endpoints to feed chart data
 @app.route('/api/reports/container-status')
