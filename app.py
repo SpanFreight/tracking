@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta  # Add timedelta to the import
 import os
 import sys  # Add the sys import
 import pandas as pd
@@ -1663,7 +1663,8 @@ def update_vessel(id):
             # Update current location to destination if available
             if vessel.current_destination:
                 vessel.current_location = vessel.current_destination
-                vessel.current_destination = "---"
+                # Don't replace with "---", just clear the destination since vessel has arrived
+                vessel.current_destination = ""
             
             # Update arrival date for all containers on this vessel
             loaded_containers = vessel.get_loaded_containers()
@@ -1674,16 +1675,14 @@ def update_vessel(id):
             
             if container_count > 0:
                 flash(f'Updated arrival date for {container_count} containers to match vessel arrival.', 'info')
-            
-            # Update locations for all containers on this vessel
-            # ...existing code...
         
         # Handle vessel status change from Departed to Arrived (keep existing code)
         if original_status == 'Departed' and new_status == 'Arrived':
             # Update current location to destination if available
             if vessel.current_destination:
                 vessel.current_location = vessel.current_destination
-                vessel.current_destination = "---"
+                # Don't replace with "---", just clear the destination
+                vessel.current_destination = ""
             # Update locations for all containers on this vessel
             loaded_containers = vessel.get_loaded_containers()
             for container in loaded_containers:
@@ -1807,7 +1806,7 @@ def discharge_container(id):
     current_location = container.get_current_location()
     if not current_location or current_location['type'] != 'vessel':
         flash('Container is not currently on a vessel!', 'danger')
-        return redirect(url_for('container_detail', id=container.id))
+        return redirect(url_for('container_detail', id=id))
     
     vessel = current_location['vessel']
     if request.method == 'POST':
@@ -3468,6 +3467,264 @@ def admin_create_backup_dir():
         flash(f'Error creating backup directory: {str(e)}', 'danger')
         
     return redirect(url_for('admin_system'))
+
+# Add this new route for admin reports
+@app.route('/admin/reports')
+@login_required
+def admin_reports():
+    """Admin reports dashboard with graphs and analytics"""
+    if not current_user.is_admin:
+        flash('You do not have permission to access this page.', 'danger')
+        return redirect(url_for('index'))
+    
+    # Get basic statistics for the dashboard
+    total_container_count = Container.query.count()
+    total_vessel_count = Vessel.query.count()
+    
+    # Get latest status subquery (reuse from other queries)
+    latest_status_subquery = db.session.query(
+        ContainerStatus.container_id,
+        db.func.max(ContainerStatus.created_at).label('max_date')
+    ).group_by(ContainerStatus.container_id).subquery('latest_status')
+    
+    # Count containers by status
+    status_counts = {}
+    for status in ['loaded', 'discharged', 'emptied', 'full']:
+        count = db.session.query(Container)\
+            .join(latest_status_subquery, Container.id == latest_status_subquery.c.container_id)\
+            .join(ContainerStatus, db.and_(
+                ContainerStatus.container_id == latest_status_subquery.c.container_id,
+                ContainerStatus.created_at == latest_status_subquery.c.max_date,
+                ContainerStatus.status == status
+            ))\
+            .count()
+        status_counts[status] = count
+    
+    # Get vessel statistics
+    vessels_with_containers = db.session.query(Vessel, db.func.count(ContainerMovement.container_id.distinct()))\
+        .join(ContainerMovement, ContainerMovement.vessel_id == Vessel.id)\
+        .filter(ContainerMovement.operation_type == 'load')\
+        .group_by(Vessel.id)\
+        .order_by(db.func.count(ContainerMovement.container_id.distinct()).desc())\
+        .limit(5)\
+        .all()
+    
+    top_vessels = [
+        {
+            'name': vessel.name,
+            'count': container_count,
+            'voyage': vessel.imo_number
+        }
+        for vessel, container_count in vessels_with_containers
+    ]
+    
+    # Get container movement statistics (last 30 days)
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    movement_stats = db.session.query(
+        ContainerMovement.operation_type,
+        db.func.count()
+    ).filter(ContainerMovement.created_at >= thirty_days_ago)\
+     .group_by(ContainerMovement.operation_type)\
+     .all()
+    
+    movement_counts = {op_type: count for op_type, count in movement_stats}
+    
+    # Get location statistics
+    location_stats = db.session.query(
+        ContainerStatus.location,
+        db.func.count()
+    ).filter(ContainerStatus.created_at >= thirty_days_ago)\
+     .group_by(ContainerStatus.location)\
+     .order_by(db.func.count().desc())\
+     .limit(5)\
+     .all()
+    
+    top_locations = [{'location': loc, 'count': count} for loc, count in location_stats]
+    
+    # Add 180-day summary data
+    one_eighty_days_ago = datetime.now() - timedelta(days=180)
+
+    # Check database dialect without relying on db.session.bind
+    # Instead, check the database URI directly
+    database_uri = app.config['SQLALCHEMY_DATABASE_URI'].lower()
+    is_postgresql = 'postgresql' in database_uri
+
+    # Get monthly container counts for the last 180 days
+    if is_postgresql:
+        # PostgreSQL uses to_char for date formatting
+        date_format_func = db.func.to_char(
+            ContainerMovement.operation_date, 
+            'YYYY-MM'
+        ).label('month')
+    else:
+        # SQLite uses strftime
+        date_format_func = db.func.strftime(
+            '%Y-%m', 
+            ContainerMovement.operation_date
+        ).label('month')
+    
+    # Get monthly container counts for the last 180 days
+    monthly_data = db.session.query(
+        date_format_func,
+        ContainerMovement.operation_type,
+        db.func.count().label('count')
+    ).filter(ContainerMovement.operation_date >= one_eighty_days_ago)\
+     .group_by('month', ContainerMovement.operation_type)\
+     .order_by('month').all()
+    
+    # Format the monthly data for display
+    months = sorted(list(set(month for month, _, _ in monthly_data)))
+    monthly_summary = {
+        'labels': months,
+        'load_counts': [],
+        'discharge_counts': []
+    }
+    
+    for month in months:
+        # Get load count for this month
+        load_count = next((count for m, op_type, count in monthly_data 
+                          if m == month and op_type == 'load'), 0)
+        monthly_summary['load_counts'].append(load_count)
+        
+        # Get discharge count for this month
+        discharge_count = next((count for m, op_type, count in monthly_data 
+                              if m == month and op_type == 'discharge'), 0)
+        monthly_summary['discharge_counts'].append(discharge_count)
+    
+    # Get 180-day total statistics
+    stats_180_days = {
+        'total_containers': Container.query.filter(Container.created_at >= one_eighty_days_ago).count(),
+        'total_movements': ContainerMovement.query.filter(ContainerMovement.operation_date >= one_eighty_days_ago).count(),
+        'loaded': db.session.query(db.func.count()).filter(
+            ContainerMovement.operation_type == 'load',
+            ContainerMovement.operation_date >= one_eighty_days_ago
+        ).scalar() or 0,
+        'discharged': db.session.query(db.func.count()).filter(
+            ContainerMovement.operation_type == 'discharge',
+            ContainerMovement.operation_date >= one_eighty_days_ago
+        ).scalar() or 0
+    }
+    
+    return render_template('admin/reports.html',
+                          total_container_count=total_container_count,
+                          total_vessel_count=total_vessel_count,
+                          status_counts=status_counts,
+                          top_vessels=top_vessels,
+                          movement_counts=movement_counts,
+                          top_locations=top_locations,
+                          monthly_summary=monthly_summary,
+                          stats_180_days=stats_180_days)
+
+# Add API endpoints to feed chart data
+@app.route('/api/reports/container-status')
+@login_required
+def container_status_data():
+    """API endpoint to get container status distribution data"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    # Get latest status subquery
+    latest_status_subquery = db.session.query(
+        ContainerStatus.container_id,
+        db.func.max(ContainerStatus.created_at).label('max_date')
+    ).group_by(ContainerStatus.container_id).subquery('latest_status')
+    
+    # Get container counts by status
+    status_data = db.session.query(
+        ContainerStatus.status,
+        db.func.count(Container.id)
+    ).join(latest_status_subquery, ContainerStatus.container_id == latest_status_subquery.c.container_id)\
+     .filter(ContainerStatus.created_at == latest_status_subquery.c.max_date)\
+     .join(Container, Container.id == ContainerStatus.container_id)\
+     .group_by(ContainerStatus.status)\
+     .all()
+    
+    # Define a mapping of status to color to ensure consistency
+    status_colors = {
+        'loaded': '#28a745',    # green for loaded
+        'discharged': '#ffc107', # yellow for discharged
+        'emptied': '#17a2b8',    # blue for emptied
+        'full': '#7952B3',       # purple for full
+        'in_transit': '#fd7e14',  # orange for in_transit
+        'customs_hold': '#dc3545', # red for customs_hold
+        'ready_for_pickup': '#20c997' # teal for ready_for_pickup
+    }
+    
+    # Default color for any status not in our mapping
+    default_color = '#6c757d'  # gray for other statuses
+    
+    # Prepare the data with matching colors for each status
+    labels = [status for status, _ in status_data]
+    data_values = [count for _, count in status_data]
+    colors = [status_colors.get(status.lower(), default_color) for status, _ in status_data]
+    
+    data = {
+        'labels': labels,
+        'data': data_values,
+        'backgroundColor': colors
+    }
+    
+    return jsonify(data)
+
+@app.route('/api/reports/container-movements')
+@login_required
+def container_movement_data():
+    """API endpoint to get container movement data over time"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    days = int(request.args.get('days', 30))
+    
+    # Get movement data for the last X days
+    start_date = datetime.now() - timedelta(days=days)
+    
+    # Get data grouped by date and operation type
+    movement_data = db.session.query(
+        db.func.date(ContainerMovement.operation_date),
+        ContainerMovement.operation_type,
+        db.func.count()
+    ).filter(ContainerMovement.operation_date >= start_date)\
+     .group_by(db.func.date(ContainerMovement.operation_date), ContainerMovement.operation_type)\
+     .order_by(db.func.date(ContainerMovement.operation_date))\
+     .all()
+    
+    # Process the data for Chart.js
+    dates = sorted(list(set(date for date, _, _ in movement_data)))
+    
+    # Prepare data structure
+    chart_data = {
+        'labels': [date.strftime('%Y-%m-%d') for date in dates],
+        'datasets': [
+            {
+                'label': 'Load',
+                'data': [],
+                'backgroundColor': 'rgba(40, 167, 69, 0.6)',  # green
+                'borderColor': '#28a745',
+                'borderWidth': 1
+            },
+            {
+                'label': 'Discharge',
+                'data': [],
+                'backgroundColor': 'rgba(255, 193, 7, 0.6)',  # yellow
+                'borderColor': '#ffc107',
+                'borderWidth': 1
+            }
+        ]
+    }
+    
+    # Fill in the data arrays
+    for date in dates:
+        # Find load count for this date
+        load_record = next((rec for rec in movement_data if rec[0] == date and rec[1] == 'load'), None)
+        load_count = load_record[2] if load_record else 0
+        chart_data['datasets'][0]['data'].append(load_count)
+        
+        # Find discharge count for this date
+        discharge_record = next((rec for rec in movement_data if rec[0] == date and rec[1] == 'discharge'), None)
+        discharge_count = discharge_record[2] if discharge_record else 0
+        chart_data['datasets'][1]['data'].append(discharge_count)
+    
+    return jsonify(chart_data)
 
 if __name__ == '__main__':
     with app.app_context():

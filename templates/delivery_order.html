@@ -699,6 +699,21 @@
                 <span style="font-weight: bold;">BL Number:</span>
                 <span style="margin-left: 20px;">{{ container.bl_number or 'N/A' }}</span>
             </div>
+            <!-- After the BL Number field, add the radio buttons for TELEX, OBL, or Other -->
+            <div style="margin-bottom: 20px;" class="release-type-container">
+                <span style="font-weight: bold;">Release Type:</span>
+                <div style="margin-left: 20px; display: inline-block;">
+                    <label class="me-3">
+                        <input type="radio" name="release_type" value="TELEX" class="release-type-radio me-1"> TELEX
+                    </label>
+                    <label class="me-3">
+                        <input type="radio" name="release_type" value="OBL" class="release-type-radio me-1"> OBL
+                    </label>
+                    <label>
+                        <input type="radio" name="release_type" value="Other" class="release-type-radio me-1"> Other
+                    </label>
+                </div>
+            </div>
             <div style="margin-bottom: 20px;">
                 <span style="font-weight: bold;">Please deliver to:</span>
                 <span contenteditable="true" class="editable-field" style="margin-left: 20px;">Enter recipient name</span>
@@ -820,6 +835,21 @@
                 <span style="font-weight: bold;">BL Number:</span>
                 <span style="margin-left: 20px;">{{ container.bl_number or 'N/A' }}</span>
             </div>
+            <!-- After the BL Number field, add the radio buttons for TELEX, OBL, or Other -->
+            <div style="margin-bottom: 20px;" class="release-type-container">
+                <span style="font-weight: bold;">Release Type:</span>
+                <div style="margin-left: 20px; display: inline-block;">
+                    <label class="me-3">
+                        <input type="radio" name="release_type_copy" value="TELEX" class="release-type-radio me-1"> TELEX
+                    </label>
+                    <label class="me-3">
+                        <input type="radio" name="release_type_copy" value="OBL" class="release-type-radio me-1"> OBL
+                    </label>
+                    <label>
+                        <input type="radio" name="release_type_copy" value="Other" class="release-type-radio me-1"> Other
+                    </label>
+                </div>
+            </div>
             <div style="margin-bottom: 20px;">
                 <span style="font-weight: bold;">Please deliver to:</span>
                 <span contenteditable="true" class="editable-field" style="margin-left: 20px;">Enter recipient name</span>
@@ -934,6 +964,21 @@
                 <span style="font-weight: bold;">BL Number:</span>
                 <span style="margin-left: 20px;">{{ container.bl_number or 'N/A' }}</span>
             </div>
+            <!-- After the BL Number field, add the radio buttons for TELEX, OBL, or Other -->
+            <div style="margin-bottom: 20px;" class="release-type-container">
+                <span style="font-weight: bold;">Release Type:</span>
+                <div style="margin-left: 20px; display: inline-block;">
+                    <label class="me-3">
+                        <input type="radio" name="release_type_terminal" value="TELEX" class="release-type-radio me-1"> TELEX
+                    </label>
+                    <label class="me-3">
+                        <input type="radio" name="release_type_terminal" value="OBL" class="release-type-radio me-1"> OBL
+                    </label>
+                    <label>
+                        <input type="radio" name="release_type_terminal" value="Other" class="release-type-radio me-1"> Other
+                    </label>
+                </div>
+            </div>
             <div style="margin-bottom: 20px;">
                 <span style="font-weight: bold;">Please deliver to:</span>
                 <span contenteditable="true" class="editable-field" style="margin-left: 20px;">Enter recipient name</span>
@@ -1036,6 +1081,11 @@
         <!-- Add print status badge -->
         <div id="print-status" class="mt-3" style="display: none;">
             <span class="badge bg-success p-2"><i class="fas fa-check-circle me-2"></i> Print completed successfully</span>
+        </div>
+
+        <!-- Add warning for release type -->
+        <div id="release-type-warning" class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle me-2"></i> Please select a release type (TELEX, OBL, or Other) before printing.
         </div>
     </div>
 
@@ -1215,7 +1265,15 @@
             
             if (userInfoField && userInfoField.value && agentNameElement) {
                 // If we have a username, display it instead of "Agents"
-                agentNameElement.textContent = userInfoField.value;
+                const username = userInfoField.value;
+                agentNameElement.textContent = username;
+                
+                // Also update the agent name in the copies
+                const copyAgentName = document.getElementById('agent-name-copy');
+                const terminalAgentName = document.getElementById('agent-name-terminal');
+                
+                if (copyAgentName) copyAgentName.textContent = username;
+                if (terminalAgentName) terminalAgentName.textContent = username;
             }
             
             // Add a global flag to track alert status and validation history
@@ -1904,6 +1962,32 @@ document.addEventListener('DOMContentLoaded', function() {
         // First synchronize the table rows to ensure the structure matches
         syncTableRows();
         
+        // Synchronize the radio button selections
+        const originalRadios = document.querySelectorAll('.receipt:not(.receipt-duplicate):not(.receipt-terminal) .release-type-radio');
+        let selectedValue = null;
+        
+        // Find which radio is selected in the original form
+        originalRadios.forEach(radio => {
+            if (radio.checked) {
+                selectedValue = radio.value;
+            }
+        });
+        
+        // If a radio is selected, update the copies
+        if (selectedValue) {
+            // Update archive copy radios
+            const archiveCopyRadios = document.querySelectorAll('.receipt-duplicate .release-type-radio');
+            archiveCopyRadios.forEach(radio => {
+                radio.checked = (radio.value === selectedValue);
+            });
+            
+            // Update terminal copy radios
+            const terminalCopyRadios = document.querySelectorAll('.receipt-terminal .release-type-radio');
+            terminalCopyRadios.forEach(radio => {
+                radio.checked = (radio.value === selectedValue);
+            });
+        }
+        
         // Then synchronize all editable fields from original receipt
         const originalFields = document.querySelectorAll('.receipt:not(.receipt-duplicate):not(.receipt-terminal) .editable-field');
         
@@ -2000,6 +2084,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const terminalDoNumber = document.getElementById('delivery-order-number-terminal');
         if (terminalDoNumber) terminalDoNumber.textContent = doNumber;
+
+        // Sync the agent names across all copies
+        const originalAgentName = document.getElementById('agent-name');
+        if (originalAgentName) {
+            const copyAgentName = document.getElementById('agent-name-copy');
+            const terminalAgentName = document.getElementById('agent-name-terminal');
+            
+            if (copyAgentName) copyAgentName.textContent = originalAgentName.textContent;
+            if (terminalAgentName) terminalAgentName.textContent = originalAgentName.textContent;
+        }
     }
     
     // Set up container number field behaviors
@@ -2058,6 +2152,82 @@ function setupContainerFieldBehaviors() {
         });
         
         // ...existing code...
+
+        // Add radio button validation
+        const releaseRadios = document.querySelectorAll('.release-type-radio');
+        const printButton = document.getElementById('print-button');
+        const releaseWarning = document.getElementById('release-type-warning');
+        
+        // Initially disable print button until both authorization check passes AND a radio button is selected
+        printButton.disabled = true;
+        
+        // Keep track of authorization state
+        let isAuthorized = false;
+        
+        // Check if any radio is checked
+        function checkRadioSelection() {
+            let isAnyChecked = Array.from(releaseRadios).some(radio => radio.checked);
+            
+            // Only enable button if authorized AND radio selected
+            printButton.disabled = !(isAuthorized && isAnyChecked);
+            
+            // Show/hide warning based on radio selection
+            releaseWarning.style.display = isAnyChecked ? 'none' : 'block';
+            
+            return isAnyChecked;
+        }
+        
+        // Add event listeners to all radio buttons
+        releaseRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                checkRadioSelection();
+                
+                // Synchronize with duplicate forms
+                const value = this.value;
+                syncRadioSelection(value);
+            });
+        });
+        
+        // Function to sync radio selection across all copies
+        function syncRadioSelection(value) {
+            // Sync radio in archive copy
+            const archiveCopyRadios = document.querySelectorAll('.receipt-duplicate .release-type-radio');
+            archiveCopyRadios.forEach(radio => {
+                radio.checked = (radio.value === value);
+            });
+            
+            // Sync radio in terminal copy
+            const terminalCopyRadios = document.querySelectorAll('.receipt-terminal .release-type-radio');
+            terminalCopyRadios.forEach(radio => {
+                radio.checked = (radio.value === value);
+            });
+        }
+        
+        // Modify the existing authorization check to update our isAuthorized flag
+        function verifyAuthorization() {
+            fetch('/api/verify-print-authorization/{{ container.id }}')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.authorized) {
+                        console.error('Not authorized to print this delivery order');
+                        window.location.href = "{{ url_for('container_detail', id=container.id, auth_error=1) }}";
+                    } else {
+                        console.log('Authorization verified');
+                        // Update authorization flag
+                        isAuthorized = true;
+                        // Check radio selection to determine if print button should be enabled
+                        checkRadioSelection();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error verifying authorization:', error);
+                    alert('Error: ' + error.message);
+                    window.location.href = "{{ url_for('container_detail', id=container.id, auth_error=1) }}";
+                });
+        }
+        
+        // Call authorization check immediately
+        verifyAuthorization();
     });
 </script>
 </body>
