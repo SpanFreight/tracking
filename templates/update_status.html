@@ -167,13 +167,16 @@
                             </div>
                             
                             <div class="mb-3">
-                                <label for="client_id" class="form-label">Client</label>
-                                <select class="form-select" id="client_id" name="client_id">
-                                    <option value="">-- Select Client (optional) --</option>
-                                    {% for client in clients %}
-                                    <option value="{{ client.id }}" {% if container and container.client_id == client.id %}selected{% endif %}>{{ client.name }}</option>
-                                    {% endfor %}
-                                </select>
+                                <label for="client_name" class="form-label">Client</label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control" id="client_name" name="client_name" 
+                                           placeholder="Start typing client name or enter new client" 
+                                           value="{{ container.client.name if container.client else '' }}">
+                                    <div id="client-suggestions" class="position-absolute w-100 mt-1 d-none" 
+                                         style="z-index: 1000; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #ccc; border-radius: 4px;">
+                                    </div>
+                                </div>
+                                <div class="form-text">Enter existing client name or create a new one</div>
                             </div>
                             
                             <div class="alert alert-info">
@@ -294,6 +297,86 @@
                 }
             }
         });
+
+        // Client autocomplete
+        const clientInput = document.getElementById('client_name');
+        const suggestionsList = document.getElementById('client-suggestions');
+        let debounceTimer;
+        
+        if (clientInput && suggestionsList) {
+            // Add event listener for input changes
+            clientInput.addEventListener('input', function() {
+                const query = this.value.trim();
+                
+                // Clear previous timeout
+                clearTimeout(debounceTimer);
+                
+                // Hide suggestions if input is empty
+                if (query.length < 2) {
+                    suggestionsList.classList.add('d-none');
+                    return;
+                }
+                
+                // Debounce the API call to prevent too many requests
+                debounceTimer = setTimeout(() => {
+                    // Make API call to search for clients
+                    fetch(`/api/search-clients/${encodeURIComponent(query)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            // Clear previous suggestions
+                            suggestionsList.innerHTML = '';
+                            
+                            if (data.length > 0) {
+                                // Create and add suggestion items
+                                data.forEach(client => {
+                                    const item = document.createElement('div');
+                                    item.className = 'p-2 suggestion-item';
+                                    item.textContent = client.name;
+                                    item.style.cursor = 'pointer';
+                                    item.style.borderBottom = '1px solid #eee';
+                                    
+                                    // Add hover effect
+                                    item.addEventListener('mouseenter', function() {
+                                        this.style.backgroundColor = '#f0f0f0';
+                                    });
+                                    
+                                    item.addEventListener('mouseleave', function() {
+                                        this.style.backgroundColor = '';
+                                    });
+                                    
+                                    // Add click handler to select this client
+                                    item.addEventListener('click', function() {
+                                        clientInput.value = client.name;
+                                        suggestionsList.classList.add('d-none');
+                                    });
+                                    
+                                    suggestionsList.appendChild(item);
+                                });
+                                
+                                // Show suggestions
+                                suggestionsList.classList.remove('d-none');
+                            } else {
+                                // Show "No matches" message
+                                const noMatch = document.createElement('div');
+                                noMatch.className = 'p-2 text-muted';
+                                noMatch.textContent = 'No matching clients found. New client will be created.';
+                                suggestionsList.appendChild(noMatch);
+                                suggestionsList.classList.remove('d-none');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching client suggestions:', error);
+                        });
+                }, 300); // 300ms debounce delay
+            });
+            
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', function(event) {
+                if (event.target !== clientInput && !suggestionsList.contains(event.target)) {
+                    suggestionsList.classList.add('d-none');
+                }
+            });
+        }
     });
 </script>
 {% endblock %}

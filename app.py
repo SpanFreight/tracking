@@ -1189,6 +1189,30 @@ def update_status(id):
                 container.stripping_date = datetime.strptime(request.form.get('stripping_date'), '%Y-%m-%d')
             else:
                 container.stripping_date = None
+            
+            # Handle client name from autocomplete
+            client_name = request.form.get('client_name', '').strip()
+            if client_name:
+                # Try to find existing client by name (case insensitive)
+                client = Client.query.filter(Client.name.ilike(client_name)).first()
+                
+                if client:
+                    # Use existing client
+                    container.client_id = client.id
+                    logger.info(f"Using existing client: {client.name} (ID: {client.id})")
+                else:
+                    # Create new client with this name
+                    new_client = Client(
+                        name=client_name,
+                        created_at=datetime.utcnow()
+                    )
+                    db.session.add(new_client)
+                    db.session.flush()  # Get ID without committing
+                    container.client_id = new_client.id
+                    logger.info(f"Created new client: {client_name} (ID: {container.client_id})")
+            else:
+                # Clear client association if the field is empty
+                container.client_id = None
                 
             db.session.commit()
             flash('Container details updated successfully!', 'success')
