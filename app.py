@@ -2733,7 +2733,20 @@ def admin_reset_db():
             total_deleted += len(id_list)
             logger.info(f"Deleted {total_deleted} containers")
         
-        # 7. Delete vessels
+        # 7. Delete clients (add this new deletion step)
+        total_deleted = 0
+        flash(progress_message + "Clients...", 'info')
+        while True:
+            ids = db.session.query(Client.id).limit(batch_size).all()
+            if not ids:
+                break
+            id_list = [id[0] for id in ids]
+            Client.query.filter(Client.id.in_(id_list)).delete(synchronize_session=False)
+            db.session.commit()
+            total_deleted += len(id_list)
+            logger.info(f"Deleted {total_deleted} clients")
+        
+        # 8. Delete vessels
         total_deleted = 0
         flash(progress_message + "Vessels...", 'info')
         while True:
@@ -2746,13 +2759,13 @@ def admin_reset_db():
             total_deleted += len(id_list)
             logger.info(f"Deleted {total_deleted} vessels")
         
-        # 8. Delete non-admin users
+        # 9. Delete non-admin users
         total_deleted = 0
         flash(progress_message + "Users...", 'info')
         User.query.filter_by(is_admin=False).delete()
         db.session.commit()
         
-        # 9. Reset delivery counter
+        # 10. Reset delivery counter
         DeliveryCounter.query.delete()
         db.session.add(DeliveryCounter(counter=1))
         db.session.commit()
