@@ -229,7 +229,7 @@
                     
                     <tr data-status="{{ latest_status.status if latest_status else 'not-set' }}" data-id="{{ container.id }}">
                         <td class="select-column" style="display: {% if status_filter in ['loaded', 'discharged', 'emptied', 'full'] %}table-cell{% else %}none{% endif %};">
-                            <input type="checkbox" class="container-select" data-id="{{ container.id }}" data-number="{{ container.container_number }}">
+                            <input type="checkbox" class="container-select" data-container-id="{{ container.id }}" data-id="{{ container.id }}" data-number="{{ container.container_number }}">
                         </td>
                         <td>{{ container.container_number }}</td>
                         <td>{{ container.container_type }}</td>
@@ -503,6 +503,54 @@
 {% block scripts %}
 <script>
     $(document).ready(function() {
+        // Initialize container selection persistence
+        const containerSelections = {
+            storageKey: 'selectedContainers',
+            
+            // Get all selected container IDs from localStorage
+            getSelectedIds: function() {
+                const stored = localStorage.getItem(this.storageKey);
+                return stored ? JSON.parse(stored) : [];
+            },
+            
+            // Save a container ID to localStorage
+            addId: function(id) {
+                const ids = this.getSelectedIds();
+                if (!ids.includes(id)) {
+                    ids.push(id);
+                    localStorage.setItem(this.storageKey, JSON.stringify(ids));
+                }
+            },
+            
+            // Remove a container ID from localStorage
+            removeId: function(id) {
+                const ids = this.getSelectedIds();
+                const index = ids.indexOf(id);
+                if (index > -1) {
+                    ids.splice(index, 1);
+                    localStorage.setItem(this.storageKey, JSON.stringify(ids));
+                }
+            },
+            
+            // Clear all selections from localStorage
+            clearAll: function() {
+                localStorage.removeItem(this.storageKey);
+            },
+            
+            // Apply stored selections to checkboxes on page
+            applySelections: function() {
+                const selectedIds = this.getSelectedIds();
+                $('.container-select').each(function() {
+                    const id = $(this).data('id').toString();
+                    $(this).prop('checked', selectedIds.includes(id));
+                });
+                updateSelectedCount(); // Update the counter after applying selections
+            }
+        };
+        
+        // Apply stored selections when page loads
+        containerSelections.applySelections();
+        
         // Update dashboard counts - modified to exclude containers on departed vessels
         function updateDashboardCounts() {
             $.get('/api/containers', function(data) {
@@ -562,27 +610,47 @@
         
         // Bulk selection functionality
         $('#select-all').click(function() {
-            $('.container-select:visible').prop('checked', true);
+            $('.container-select:visible').each(function() {
+                $(this).prop('checked', true);
+                const id = $(this).data('id').toString();
+                containerSelections.addId(id);
+            });
             updateSelectedCount();
         });
         
         $('#deselect-all').click(function() {
+            containerSelections.clearAll();
             $('.container-select').prop('checked', false);
             updateSelectedCount();
         });
         
         $('#select-all-checkbox').change(function() {
-            $('.container-select:visible').prop('checked', this.checked);
+            $('.container-select:visible').each(function() {
+                $(this).prop('checked', this.checked);
+                const id = $(this).data('id').toString();
+                if ($('#select-all-checkbox').is(':checked')) {
+                    containerSelections.addId(id);
+                } else {
+                    containerSelections.removeId(id);
+                }
+            });
             updateSelectedCount();
         });
         
         // Update when individual checkboxes change
         $(document).on('change', '.container-select', function() {
+            const id = $(this).data('id').toString();
+            if ($(this).is(':checked')) {
+                containerSelections.addId(id);
+            } else {
+                containerSelections.removeId(id);
+            }
             updateSelectedCount();
         });
         
         function updateSelectedCount() {
-            const selectedCount = $('.container-select:checked').length;
+            // Get the count from localStorage instead of just visible checkboxes
+            const selectedCount = containerSelections.getSelectedIds().length;
             $('#selected-count').text(selectedCount + ' containers selected');
             
             // Update containers list in all modals
@@ -597,11 +665,27 @@
         
         function updateModalContainersList(listId, countId) {
             const $list = $('#' + listId).empty();
-            $('.container-select:checked').each(function() {
-                const containerNumber = $(this).data('number');
-                $list.append(`<li>${containerNumber}</li>`);
+            const selectedIds = containerSelections.getSelectedIds();
+            let containerNumbers = [];
+            
+            // For each selected ID, find the container number if visible
+            selectedIds.forEach(id => {
+                const $checkbox = $(`.container-select[data-id="${id}"]`);
+                if ($checkbox.length) {
+                    containerNumbers.push($checkbox.data('number'));
+                } else {
+                    // For containers not visible on current page, just show the ID
+                    containerNumbers.push(`Container #${id}`);
+                }
             });
-            $('#' + countId).text($('.container-select:checked').length);
+            
+            // Add container numbers to the list
+            containerNumbers.forEach(number => {
+                $list.append(`<li>${number}</li>`);
+            });
+            
+            // Update the count
+            $('#' + countId).text(selectedIds.length);
         }
         
         function filterContainers() {
@@ -718,11 +802,7 @@
         }
         
         function getSelectedContainerIds() {
-            const containerIds = [];
-            $('.container-select:checked').each(function() {
-                containerIds.push($(this).data('id'));
-            });
-            return containerIds;
+            return containerSelections.getSelectedIds();
         }
         
         // Handle form submissions for bulk operations
