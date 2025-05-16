@@ -97,10 +97,10 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="stat-value">{{ total_vessel_count }}</div>
-                        <div class="stat-label">Active Vessels</div>
+                        <div class="stat-value">{{ client_count|default(0) }}</div>
+                        <div class="stat-label">Total Clients</div>
                     </div>
-                    <div><i class="fas fa-briefcase fa-3x opacity-50"></i></div>
+                    <div><i class="fas fa-users fa-3x opacity-50"></i></div>
                 </div>
             </div>
         </div>
@@ -212,16 +212,59 @@
     </div>
 </div>
 
-<!-- Movement Timeline Card -->
+<!-- New Row: Top Clients by Container Count -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card card-dashboard">
-            <div class="card-header bg-light">
-                <h5 class="mb-0">Container Movement Timeline</h5>
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Top Clients by Container Count</h5>
+                <a href="{{ url_for('clients') }}" class="btn btn-sm btn-outline-primary">View All Clients</a>
             </div>
             <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="timelineChart"></canvas>
+                <div class="row">
+                    <div class="col-lg-7">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Client</th>
+                                        <th>Contact Person</th>
+                                        <th>Containers</th>
+                                        <th>Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for client in top_clients|default([]) %}
+                                    <tr>
+                                        <td>
+                                            <a href="{{ url_for('client_detail', id=client.id) }}">{{ client.name }}</a>
+                                        </td>
+                                        <td>{{ client.contact_person|default('--') }}</td>
+                                        <td>{{ client.container_count }}</td>
+                                        <td>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-info" role="progressbar" 
+                                                     style="width: {{ (client.container_count / total_container_count) * 100 }}%" 
+                                                     aria-valuenow="{{ client.container_count }}" 
+                                                     aria-valuemin="0" 
+                                                     aria-valuemax="{{ total_container_count }}"></div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center">No client data available</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="chart-container">
+                            <canvas id="clientContainerChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -479,6 +522,84 @@
                             title: {
                                 display: true,
                                 text: 'Month'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Client container distribution chart
+        setupClientContainerChart();
+        
+        function setupClientContainerChart() {
+            const ctx = document.getElementById('clientContainerChart').getContext('2d');
+            
+            // Get client data from the backend
+            const clientData = [
+                {% for client in top_clients|default([]) %}
+                {
+                    name: "{{ client.name }}",
+                    count: {{ client.container_count }}
+                },
+                {% endfor %}
+            ];
+            
+            if (clientData.length === 0) {
+                // Display a message if no data
+                const noDataDiv = document.createElement('div');
+                noDataDiv.className = 'text-center text-muted mt-5 pt-5';
+                noDataDiv.innerHTML = '<i class="fas fa-chart-bar fa-3x mb-3"></i><p>No client data available</p>';
+                document.getElementById('clientContainerChart').parentNode.appendChild(noDataDiv);
+                document.getElementById('clientContainerChart').style.display = 'none';
+                return;
+            }
+            
+            // Create pie chart for client container distribution
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: clientData.map(item => item.name),
+                    datasets: [{
+                        data: clientData.map(item => item.count),
+                        backgroundColor: [
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(255, 206, 86, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(153, 102, 255, 0.7)',
+                            'rgba(255, 159, 64, 0.7)',
+                            'rgba(199, 199, 199, 0.7)',
+                            'rgba(83, 102, 255, 0.7)',
+                            'rgba(40, 159, 64, 0.7)',
+                            'rgba(210, 199, 199, 0.7)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Client Container Distribution'
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
                             }
                         }
                     }

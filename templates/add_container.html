@@ -114,6 +114,16 @@
                         <small class="form-text text-muted">Notes will be auto-generated for certain status types if left blank.</small>
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="client_id" class="form-label">Client</label>
+                        <select class="form-select" id="client_id" name="client_id">
+                            <option value="">-- Select Client (optional) --</option>
+                            {% for client in clients %}
+                            <option value="{{ client.id }}" {% if container and container.client_id == client.id %}selected{% endif %}>{{ client.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
                     <div class="mt-4">
                         <button type="submit" class="btn btn-primary">Add Container</button>
                         <a href="{{ url_for('index') }}" class="btn btn-secondary ms-2">Cancel</a>
@@ -130,7 +140,7 @@
             </div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data" action="{{ url_for('add_container') }}">
-                    <p>Upload an Excel file (.xlsx, .xls) or CSV file (.csv) containing container information.</p>
+                    <p>Upload an Excel file (.xlsx, .xls) or CSV file containing container information.</p>
                     
                     <div class="card mb-3">
                         <div class="card-header bg-info text-white">
@@ -172,6 +182,7 @@
                                                 <li class="list-group-item"><code>status</code> - Current status (loaded, discharged, emptied, full)</li>
                                                 <li class="list-group-item"><code>date</code> - Date of status (YYYY-MM-DD)</li>
                                                 <li class="list-group-item"><code>location</code> - Current container location</li>
+                                                <li class="list-group-item"><code>client</code> - <strong>Client name</strong> (must match existing client names in the system)</li>
                                                 <li class="list-group-item"><code>notes</code> - Additional notes</li>
                                             </ul>
                                         </div>
@@ -184,6 +195,10 @@
                     <div class="row mb-3">
                         <div class="col-md-12">
                             <input type="file" class="form-control" name="file" accept=".xlsx,.xls,.csv" required>
+                            <div class="form-text mt-1">
+                                <i class="fas fa-info-circle text-primary"></i> 
+                                <strong>Client assignment:</strong> Include a <code>client</code> column with client names to automatically associate containers with clients during import.
+                            </div>
                         </div>
                     </div>
                     

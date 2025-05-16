@@ -97,6 +97,9 @@ class Container(db.Model):
     bl_number = db.Column(db.String(50))
     stripping_date = db.Column(db.DateTime)  # Added field for stripping date
     
+    # Add client relationship
+    client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=True)
+    
     # Relationship with ContainerStatus
     statuses = db.relationship('ContainerStatus', backref='container', lazy=True, cascade="all, delete-orphan")
     
@@ -341,6 +344,27 @@ class DeliveryCounter(db.Model):
     counter = db.Column(db.Integer, default=1)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
 
+# Add Client model after existing models
+class Client(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    phone = db.Column(db.String(20))
+    email = db.Column(db.String(100))
+    address = db.Column(db.Text)
+    contact_person = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship with Container
+    containers = db.relationship('Container', backref='client', lazy=True)
+    
+    def __repr__(self):
+        return f"Client('{self.name}')"
+        
+    def get_container_count(self):
+        """Get count of containers associated with this client"""
+        return Container.query.filter_by(client_id=self.id).count()
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
@@ -353,6 +377,14 @@ def map_location_codes(location):
     return location_mapping.get(location, location)
 
 from pagination import Pagination
+
+# Add this before your first route definition, after Flask app is created
+@app.template_filter('nl2br')
+def nl2br_filter(s):
+    """Convert newlines to <br> for HTML display."""
+    if not s:
+        return ''
+    return s.replace('\n', '<br>')
 
 @app.route('/')
 @login_required
@@ -728,10 +760,11 @@ def add_container():
                     success_count = 0
                     error_count = 0
                     vessels_not_found = set()
+                    clients_created = 0  # Counter for new clients created
                     
                     # Function to process a batch of records
                     def process_batch(batch_df):
-                        nonlocal success_count, error_count, vessels_not_found
+                        nonlocal success_count, error_count, vessels_not_found, clients_created
                         container_objects = []
                         
                         try:
@@ -748,13 +781,38 @@ def add_container():
                                     error_count += 1
                                     continue
                                     
+                                # Handle client association if specified - check for client column case-insensitively
+                                client_id = None
+                                client_column = next((col for col in row.index if col.lower() == 'client'), None)
+                                
+                                if client_column and not pd.isna(row[client_column]):
+                                    client_name = str(row[client_column]).strip()
+                                    if client_name:
+                                        # Try to find client by name (case-insensitive)
+                                        client = Client.query.filter(Client.name.ilike(client_name)).first()
+                                        if client:
+                                            client_id = client.id
+                                            logger.info(f"Associated container {container_number} with existing client {client.name} (ID: {client_id})")
+                                        else:
+                                            # Create a new client with this name
+                                            new_client = Client(
+                                                name=client_name,
+                                                created_at=datetime.utcnow()
+                                            )
+                                            db.session.add(new_client)
+                                            db.session.flush()  # Flush to get the ID without committing
+                                            client_id = new_client.id
+                                            clients_created += 1
+                                            logger.info(f"Created new client '{client_name}' (ID: {client_id}) and associated with container {container_number}")
+                                
                                 new_container = Container(
                                     container_number=container_number,
                                     container_type=container_type,
                                     loading_port=map_location_codes(str(row.get('loading_port', '')).strip()) if not pd.isna(row.get('loading_port', '')) else None,
                                     final_destination=map_location_codes(str(row.get('final_destination', '')).strip()) if not pd.isna(row.get('final_destination', '')) else None,
                                     opr=str(row.get('opr', '')).strip() if not pd.isna(row.get('opr', '')) else None,
-                                    bl_number=str(row.get('bl_number', '')).strip() if not pd.isna(row.get('bl_number', '')) else None
+                                    bl_number=str(row.get('bl_number', '')).strip() if not pd.isna(row.get('bl_number', '')) else None,
+                                    client_id=client_id  # Associate with client ID
                                 )
                                 
                                 # Parse dates if provided
@@ -939,7 +997,8 @@ def add_container():
                     # Determine if status info was imported
                     has_status = all(col in df.columns for col in ['status', 'date', 'location'])
                     status_msg = " Status information was also imported." if has_status else ""
-                    flash(f'Successfully imported {success_count} containers.{status_msg} {error_count} containers were duplicates and skipped.', 'success')
+                    client_msg = f" {clients_created} new clients were created." if clients_created > 0 else ""
+                    flash(f'Successfully imported {success_count} containers.{status_msg}{client_msg} {error_count} containers were duplicates and skipped.', 'success')
                     
                     if vessels_not_found:
                         flash(f'Warning: Some vessels were not found in the system: {", ".join(vessels_not_found)}. Please add these vessels first.', 'warning')
@@ -979,6 +1038,11 @@ def add_container():
             if request.form.get('stripping_date'):
                 stripping_date = datetime.strptime(request.form.get('stripping_date'), '%Y-%m-%d')
                 
+            # Get client_id if provided
+            client_id = request.form.get('client_id')
+            if client_id == '':
+                client_id = None
+            
             # Check if container already exists
             existing_container = Container.query.filter_by(container_number=container_number).first()
             if (existing_container):
@@ -992,7 +1056,8 @@ def add_container():
                 opr=opr,
                 arrival_date=arrival_date,
                 bl_number=bl_number,
-                stripping_date=stripping_date  # Add stripping date here
+                stripping_date=stripping_date,  # Add stripping date here
+                client_id=client_id  # Add client_id here
             )
             db.session.add(new_container)
             db.session.flush()  # Get the container ID without committing
@@ -1046,7 +1111,9 @@ def add_container():
             return redirect(url_for('index'))
     # Get vessels for the vessel dropdown
     vessels = Vessel.query.all()
-    return render_template('add_container.html', now=datetime.now(), vessels=vessels)
+    # Get clients for the client dropdown
+    clients = Client.query.order_by(Client.name).all()
+    return render_template('add_container.html', now=datetime.now(), vessels=vessels, clients=clients)
 
 @app.route('/containers/<int:id>/update_status', methods=['GET', 'POST'])
 @login_required
@@ -1268,7 +1335,7 @@ def create_import_template(output_path=None):
             (datetime.now() + pd.Timedelta(days=8)).strftime('%Y-%m-%d')
         ],
         'bl_number': ['BL-12345', 'BL-67890', 'BL-54321'],
-        'vessel': ['MSC Monaco', 'CMA CGM Comoros', 'MAERSK Alberta'],  # Added vessel column
+        'vessel': ['MSC Monaco', 'CMA CGM Comoros', 'MAERSK Alberta'],
         'stripping_date': [
             (datetime.now() + pd.Timedelta(days=15)).strftime('%Y-%m-%d'), 
             (datetime.now() + pd.Timedelta(days=20)).strftime('%Y-%m-%d'),
@@ -1281,6 +1348,7 @@ def create_import_template(output_path=None):
             (datetime.now() - pd.Timedelta(days=10)).strftime('%Y-%m-%d')
         ],
         'location': ['Mutsamudu', 'Mutsamudu', 'Moroni'],
+        'client': ['ABC Shipping Ltd', 'XYZ Logistics', 'Global Imports Inc'],  # Added client column
         'notes': ['Refrigerated cargo', 'Handle with care', 'Customs cleared']
     }
     
@@ -1291,7 +1359,7 @@ def create_import_template(output_path=None):
     column_order = [
         'container_number', 'container_type', 'loading_port', 'final_destination', 
         'opr', 'arrival_date', 'bl_number', 'vessel', 'stripping_date', 'status', 'date', 
-        'location', 'notes'
+        'location', 'client', 'notes'  # Added client before notes
     ]
     df = df[column_order]
 
@@ -1342,7 +1410,8 @@ def create_import_template(output_path=None):
             worksheet.set_column('J:J', 12)  # status
             worksheet.set_column('K:K', 12)  # date
             worksheet.set_column('L:L', 15)  # location
-            worksheet.set_column('M:M', 30)  # notes
+            worksheet.set_column('M:M', 15)  # client
+            worksheet.set_column('N:N', 30)  # notes
             
             # Add descriptions on another sheet
             desc_sheet = workbook.add_worksheet('Instructions')
@@ -1364,6 +1433,7 @@ def create_import_template(output_path=None):
                 ('status', 'Optional. Current status of container (loaded, discharged, emptied, full)'),
                 ('date', 'Optional. Date of the status in format YYYY-MM-DD'),
                 ('location', 'Optional. Location where the container is currently located'),
+                ('client', 'Optional. Client name associated with this container. Must match an existing client in the system.'),
                 ('notes', 'Optional. Additional notes about the container')
             ]
             
@@ -1456,7 +1526,8 @@ def create_import_template(output_path=None):
             worksheet.set_column('J:J', 12)  # status
             worksheet.set_column('K:K', 12)  # date
             worksheet.set_column('L:L', 15)  # location
-            worksheet.set_column('M:M', 30)  # notes
+            worksheet.set_column('M:M', 15)  # client
+            worksheet.set_column('N:N', 30)  # notes
             
             # Add descriptions on another sheet
             desc_sheet = workbook.add_worksheet('Instructions')
@@ -1478,6 +1549,7 @@ def create_import_template(output_path=None):
                 ('status', 'Optional. Current status of container (loaded, discharged, emptied, full)'),
                 ('date', 'Optional. Date of the status in format YYYY-MM-DD'),
                 ('location', 'Optional. Location where the container is currently located'),
+                ('client', 'Optional. Client name associated with this container. Must match an existing client in the system.'),
                 ('notes', 'Optional. Additional notes about the container')
             ]
             
@@ -1942,6 +2014,7 @@ def bulk_load_containers():
                 skipped_count += 1
                 error_messages.append(f"Container {container.container_number} is in a different location than vessel")
                 continue
+                
             # Create container movement record 
             movement = ContainerMovement(
                 operation_type='load',
@@ -1951,17 +2024,20 @@ def bulk_load_containers():
                 container_id=container_id,
                 vessel_id=vessel_id   
             )
+            
             # Update container status
             status = ContainerStatus(
                 status='loaded',
                 date=operation_date,
                 location=location,
-                notes=f"Loaded onto vessel {vessel.name} (bulk operation)",
-                container_id=container_id   
+                notes=notes,
+                container_id=container_id
             )
+            
             db.session.add(movement)
             db.session.add(status)
             success_count += 1
+            
         except Exception as e:
             error_messages.append(f"Error with container ID {container_id}: {str(e)}")
                 
@@ -1971,6 +2047,7 @@ def bulk_load_containers():
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': f"Database error: {str(e)}"}), 500
+            
     result = {
         'success_count': success_count,
         'error_count': len(container_ids) - success_count - skipped_count,
@@ -3730,6 +3807,248 @@ def container_movement_data():
         chart_data['datasets'][1]['data'].append(discharge_count)
     
     return jsonify(chart_data)
+
+@app.route('/download/client-template')
+@login_required
+def download_client_template():
+    """Generate and download a CSV template for client import"""
+    # Create a CSV in memory
+    from io import StringIO
+    import csv
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write the header row
+    writer.writerow(['Name', 'Phone', 'Email', 'Address', 'Contact Person', 'Notes'])
+    
+    # Add a few sample rows
+    writer.writerow(['ABC Shipping', '+123456789', 'contact@abcshipping.com', '123 Main St, City', 'John Doe', 'Major client'])
+    writer.writerow(['XYZ Logistics', '+987654321', 'info@xyzlogistics.com', '456 Port Ave, Harbor', 'Jane Smith', 'New client'])
+    writer.writerow(['', '', '', '', '', ''])
+    
+    # Reset the pointer to the beginning of the StringIO object
+    output.seek(0)
+    
+    # Create a Flask response with CSV file
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename=client_template.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    return response
+
+@app.route('/download/container-template')
+@login_required
+def download_container_template():
+    """Generate and download a CSV template for bulk container upload"""
+    # Create a CSV in memory
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write the header row with CLIENT prominently displayed
+    writer.writerow(['Container Number', 'Size/Type', 'P/Loading', 'Vessel', 'Final Dest', 'OPR', 
+                    'Status', 'Arrival Date', 'Stripping date', 'Days', 'BL NUMBER', 'CLIENT', 'Notes'])
+    
+    # Add multiple sample rows with different client examples
+    writer.writerow(['ABCD1234567', '20GP', 'Shanghai', 'MSC Bonita V123', 'Moroni', 'MSC', 
+                    'discharged', '2023-06-15', '2023-06-20', '5', 'BL123456', 'ABC Shipping Ltd', 'Fragile cargo'])
+    writer.writerow(['WXYZ9876543', '40HC', 'Rotterdam', 'CMA CGM V456', 'Mutsamudu', 'CMA', 
+                    'loaded', '2023-06-22', '', '', 'BL789012', 'XYZ Logistics', 'Refrigerated'])
+    writer.writerow(['PQRS5432109', '20RF', 'Dubai', 'Maersk Line V789', 'Moroni', 'MAERSK', 
+                    'full', '2023-06-25', '2023-07-01', '6', 'BL345678', 'Global Imports Inc', 'Priority'])
+    
+    # Reset the pointer to the beginning of the StringIO object
+    output.seek(0)
+    
+    # Create a Flask response with CSV file
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = 'attachment; filename=container_template.csv'
+    response.headers['Content-Type'] = 'text/csv'
+    return response
+
+# Add client routes below existing routes but before the main app.run() line
+
+@app.route('/clients')
+@login_required
+def clients():
+    """Display list of all clients"""
+    # Get sorting parameters from the request
+    sort_by = request.args.get('sort', 'name')  # Default sort by name
+    sort_order = request.args.get('order', 'asc')    # Default to ascending order for names
+    
+    # Get search parameter
+    search_term = request.args.get('search', '').strip()
+    
+    # Get page parameter with default value of 1
+    page = request.args.get('page', 1, type=int)
+    per_page = 20  # Show 20 clients per page
+    
+    # Base query
+    clients_query = Client.query
+    
+    # Apply search if provided
+    if search_term:
+        clients_query = clients_query.filter(
+            db.or_(
+                Client.name.ilike(f'%{search_term}%'),
+                Client.contact_person.ilike(f'%{search_term}%'),
+                Client.email.ilike(f'%{search_term}%')
+            )
+        )
+    
+    # Apply sorting
+    if sort_by == 'name':
+        if sort_order == 'desc':
+            clients_query = clients_query.order_by(Client.name.desc())
+        else:
+            clients_query = clients_query.order_by(Client.name)
+    elif sort_by == 'containers':
+        # More complex sorting by container count
+        # SQLAlchemy doesn't directly support this kind of sorting
+        # Instead, get all clients and sort in Python
+        all_clients = clients_query.all()
+        for client in all_clients:
+            client.container_count = client.get_container_count()
+        
+        all_clients.sort(key=lambda c: c.container_count, 
+                        reverse=(sort_order == 'desc'))
+        
+        # Create pagination manually
+        from pagination import Pagination
+        total_count = len(all_clients)
+        start = (page - 1) * per_page
+        end = min(start + per_page, total_count)
+        
+        client_list = all_clients[start:end]
+        # Fix: Update pagination initialization to match expected parameters
+        pagination = Pagination(client_list, page, per_page, 'clients', 
+                               sort=sort_by, order=sort_order, search=search_term)
+        
+        return render_template('clients.html',
+                            clients=client_list,
+                            pagination=pagination,
+                            sort_by=sort_by,
+                            sort_order=sort_order)
+    elif sort_by == 'created_at':
+        if sort_order == 'desc':
+            clients_query = clients_query.order_by(Client.created_at.desc())
+        else:
+            clients_query = clients_query.order_by(Client.created_at)
+    else:  # Default fallback
+        clients_query = clients_query.order_by(Client.name)
+    
+    # Create pagination
+    from pagination import Pagination
+    count = clients_query.count()
+    clients = clients_query.offset((page - 1) * per_page).limit(per_page).all()
+    # Fix: Update pagination initialization to match expected parameters
+    pagination = Pagination(clients, page, per_page, 'clients', 
+                           sort=sort_by, order=sort_order, search=search_term)
+    
+    return render_template('clients.html',
+                        clients=clients,
+                        pagination=pagination,
+                        sort_by=sort_by,
+                        sort_order=sort_order)
+
+@app.route('/clients/add', methods=['GET', 'POST'])
+@login_required
+def add_client():
+    """Add a new client"""
+    if request.method == 'POST':
+        # Extract client data from form
+        name = request.form['name'].strip()
+        phone = request.form.get('phone', '').strip()
+        email = request.form.get('email', '').strip()
+        address = request.form.get('address', '').strip()
+        contact_person = request.form.get('contact_person', '').strip()
+        notes = request.form.get('notes', '').strip()
+        
+        # Validate required fields
+        if not name:
+            flash('Client name is required', 'danger')
+            return redirect(url_for('add_client'))
+        
+        # Check if client with same name already exists
+        existing_client = Client.query.filter(Client.name.ilike(name)).first()
+        if existing_client:
+            flash(f'A client with the name "{name}" already exists', 'danger')
+            return redirect(url_for('add_client'))
+        
+        # Create new client
+        client = Client(
+            name=name,
+            phone=phone,
+            email=email,
+            address=address,
+            contact_person=contact_person,
+            notes=notes,
+            created_at=datetime.utcnow()
+        )
+        
+        db.session.add(client)
+        db.session.commit()
+        flash(f'Client "{name}" added successfully', 'success')
+        return redirect(url_for('clients'))
+        
+    return render_template('add_client.html')
+
+@app.route('/clients/<int:id>')
+@login_required
+def client_detail(id):
+    """Show client details and associated containers"""
+    client = Client.query.get_or_404(id)
+    
+    # Get containers associated with this client
+    containers = Container.query.filter_by(client_id=id).all()
+    
+    return render_template('client_detail.html',
+                         client=client,
+                         containers=containers)
+
+@app.route('/clients/<int:id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_client(id):
+    """Edit client details"""
+    client = Client.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        client.name = request.form['name'].strip()
+        client.phone = request.form.get('phone', '').strip()
+        client.email = request.form.get('email', '').strip()
+        client.address = request.form.get('address', '').strip()
+        client.contact_person = request.form.get('contact_person', '').strip()
+        client.notes = request.form.get('notes', '').strip()
+        
+        db.session.commit()
+        flash(f'Client "{client.name}" updated successfully', 'success')
+        return redirect(url_for('client_detail', id=client.id))
+    
+    return render_template('edit_client.html', client=client)
+
+@app.route('/clients/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_client(id):
+    """Delete a client"""
+    client = Client.query.get_or_404(id)
+    name = client.name
+    
+    # Check if client has associated containers
+    container_count = Container.query.filter_by(client_id=id).count()
+    if container_count > 0:
+        flash(f'Cannot delete client "{name}" because it has {container_count} associated containers', 'danger')
+        return redirect(url_for('client_detail', id=id))
+    
+    try:
+        db.session.delete(client)
+        db.session.commit()
+        flash(f'Client "{name}" deleted successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting client: {str(e)}', 'danger')
+        
+    return redirect(url_for('clients'))
+
+# ...existing code...
 
 if __name__ == '__main__':
     with app.app_context():
