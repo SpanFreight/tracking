@@ -503,23 +503,33 @@
 {% block scripts %}
 <script>
     $(document).ready(function() {
-        // Update dashboard counts
+        // Update dashboard counts - modified to exclude containers on departed vessels
         function updateDashboardCounts() {
             $.get('/api/containers', function(data) {
                 let loaded = 0;
                 let discharged = 0;
                 let emptied = 0;
                 let full = 0;
+                let total = 0;
                 
                 data.forEach(container => {
+                    // Skip containers on departed vessels
+                    if (container.on_departed_vessel === true) {
+                        return; // Skip this container
+                    }
+                    
+                    // Count this container in the total
+                    total++;
+                    
+                    // Count by status
                     if (container.current_status === 'loaded') loaded++;
                     if (container.current_status === 'discharged') discharged++;
                     if (container.current_status === 'emptied') emptied++;
                     if (container.current_status === 'full') full++;
                 });
                 
-                // Update the card text values with current counts
-                $('.card-body:contains("Total Containers")').find('.card-text').text(data.length);
+                // Update the card text values with filtered counts
+                $('.card-body:contains("Total Containers")').find('.card-text').text(total);
                 $('.card-body:contains("Loaded")').find('.card-text').text(loaded);
                 $('.card-body:contains("Discharged")').find('.card-text').text(discharged);
                 $('.card-body:contains("Emptied")').find('.card-text').text(emptied);

@@ -1216,13 +1216,18 @@ def api_containers():
     for container in containers:
         # Use created_at instead of date
         latest_status = ContainerStatus.query.filter_by(container_id=container.id).order_by(ContainerStatus.created_at.desc()).first()
+        
+        # Check if container is on a departed vessel
+        on_departed_vessel = container.is_on_departed_vessel()
+        
         container_data = {
             'id': container.id,
             'container_number': container.container_number,
             'container_type': container.container_type,
             'current_status': latest_status.status if latest_status else 'Unknown',
             'last_updated': latest_status.date.strftime('%Y-%m-%d') if latest_status else 'N/A',
-            'location': latest_status.location if latest_status else 'Unknown'
+            'location': latest_status.location if latest_status else 'Unknown',
+            'on_departed_vessel': on_departed_vessel  # Add this flag
         }
         result.append(container_data)
     return jsonify(result)
