@@ -878,6 +878,10 @@
                 data: JSON.stringify(data),
                 success: function(response) {
                     $(`#${modalId}`).modal('hide');
+                    
+                    // Clear the container selections from localStorage after successful status change
+                    containerSelections.clearAll();
+                    
                     alert(response.message || `Operation completed successfully for ${response.success_count} containers!`);
                     window.location.reload();
                 },
