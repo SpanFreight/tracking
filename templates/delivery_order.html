@@ -542,6 +542,145 @@
         .button-enabled {
             animation: enableButton 0.5s ease-in-out;
         }
+
+        /* Add improved styling for radio buttons in print mode */
+        @media print {
+            /* Make selected radio buttons clearly visible when printed */
+            input[type="radio"]:checked {
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+                width: 14px;
+                height: 14px;
+                border: 2px solid #000;
+                border-radius: 50%;
+                background-color: #000; /* Black fill for checked state */
+                position: relative;
+                display: inline-block;
+                margin-right: 5px;
+                vertical-align: middle;
+            }
+            
+            input[type="radio"]:not(:checked) {
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+                width: 14px;
+                height: 14px;
+                border: 2px solid #000;
+                border-radius: 50%;
+                background-color: transparent; /* No fill for unchecked */
+                position: relative;
+                display: inline-block;
+                margin-right: 5px;
+                vertical-align: middle;
+            }
+            
+            /* Add text indicators for the release type selection */
+            .release-type-container label {
+                position: relative;
+                margin-right: 15px;
+            }
+            
+            .release-type-container input[type="radio"]:checked + span:after {
+                content: "✓";
+                position: absolute;
+                top: -1px;
+                left: -15px;
+                font-weight: bold;
+                font-size: 16px;
+            }
+        }
+        
+        /* Improve radio button visibility in normal view as well */
+        .release-type-radio {
+            margin-right: 5px;
+            transform: scale(1.2); /* Make radio buttons slightly larger */
+        }
+        
+        /* Container for release type options */
+        .release-type-container {
+            margin-bottom: 20px;
+        }
+        
+        .release-type-container label {
+            margin-right: 20px;
+            display: inline-block;
+            position: relative;
+        }
+
+        /* Custom styling for radio buttons to appear as blue circles */
+        input[type="radio"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #007bff;
+            border-radius: 50%;
+            outline: none;
+            margin-right: 5px;
+            vertical-align: middle;
+            position: relative;
+            cursor: pointer;
+        }
+        
+        input[type="radio"]:checked {
+            background-color: white;
+            border: 2px solid #007bff;
+        }
+        
+        input[type="radio"]:checked::before {
+            content: "";
+            display: block;
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #007bff;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        /* Print-specific styles - ensure blue circles are visible when printed */
+        @media print {
+            input[type="radio"] {
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+                width: 16px;
+                height: 16px;
+                border: 2px solid #007bff !important;
+                border-radius: 50%;
+                background-color: white !important;
+                margin-right: 5px;
+                vertical-align: middle;
+                position: relative;
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+            
+            input[type="radio"]:checked::before {
+                content: "";
+                display: block;
+                position: absolute;
+                width: 8px;
+                height: 8px;
+                background-color: #007bff !important;
+                border-radius: 50%;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+            
+            /* Remove text indicators as we're using the blue dot instead */
+            .release-type-container input[type="radio"]:checked + span:after {
+                content: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -704,13 +843,13 @@
                 <span style="font-weight: bold;">Release Type:</span>
                 <div style="margin-left: 20px; display: inline-block;">
                     <label class="me-3">
-                        <input type="radio" name="release_type" value="TELEX" class="release-type-radio me-1"> TELEX
+                        <input type="radio" name="release_type" value="TELEX" class="release-type-radio me-1"> <span>TELEX</span>
                     </label>
                     <label class="me-3">
-                        <input type="radio" name="release_type" value="OBL" class="release-type-radio me-1"> OBL
+                        <input type="radio" name="release_type" value="OBL" class="release-type-radio me-1"> <span>OBL</span>
                     </label>
                     <label>
-                        <input type="radio" name="release_type" value="Other" class="release-type-radio me-1"> Other
+                        <input type="radio" name="release_type" value="Other" class="release-type-radio me-1"> <span>Other</span>
                     </label>
                 </div>
             </div>
@@ -763,8 +902,10 @@
                         <td></td>
                         <td></td>
                         <td>
-                            <span class="non-editable-label">M/M: </span>
-                            <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                            <div style="display: flex; align-items: center; white-space: nowrap;">
+                                <span class="non-editable-label" style="flex-shrink: 0; margin-right: 5px;">M/M: </span>
+                                <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="flex-grow: 1; min-width: 150px; display: inline-block;"></div>
+                            </div>
                         </td>
                     </tr>
                     <!-- Add merged row at the bottom -->
@@ -840,13 +981,13 @@
                 <span style="font-weight: bold;">Release Type:</span>
                 <div style="margin-left: 20px; display: inline-block;">
                     <label class="me-3">
-                        <input type="radio" name="release_type_copy" value="TELEX" class="release-type-radio me-1"> TELEX
+                        <input type="radio" name="release_type_copy" value="TELEX" class="release-type-radio me-1"> <span>TELEX</span>
                     </label>
                     <label class="me-3">
-                        <input type="radio" name="release_type_copy" value="OBL" class="release-type-radio me-1"> OBL
+                        <input type="radio" name="release_type_copy" value="OBL" class="release-type-radio me-1"> <span>OBL</span>
                     </label>
                     <label>
-                        <input type="radio" name="release_type_copy" value="Other" class="release-type-radio me-1"> Other
+                        <input type="radio" name="release_type_copy" value="Other" class="release-type-radio me-1"> <span>Other</span>
                     </label>
                 </div>
             </div>
@@ -899,8 +1040,10 @@
                         <td></td>
                         <td></td>
                         <td>
-                            <span class="non-editable-label">M/M: </span>
-                            <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                            <div style="display: flex; align-items: center; white-space: nowrap;">
+                                <span class="non-editable-label" style="flex-shrink: 0; margin-right: 5px;">M/M: </span>
+                                <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="flex-grow: 1; min-width: 150px; display: inline-block;"></div>
+                            </div>
                         </td>
                     </tr>
                     <!-- Add merged row at the bottom -->
@@ -969,13 +1112,13 @@
                 <span style="font-weight: bold;">Release Type:</span>
                 <div style="margin-left: 20px; display: inline-block;">
                     <label class="me-3">
-                        <input type="radio" name="release_type_terminal" value="TELEX" class="release-type-radio me-1"> TELEX
+                        <input type="radio" name="release_type_terminal" value="TELEX" class="release-type-radio me-1"> <span>TELEX</span>
                     </label>
                     <label class="me-3">
-                        <input type="radio" name="release_type_terminal" value="OBL" class="release-type-radio me-1"> OBL
+                        <input type="radio" name="release_type_terminal" value="OBL" class="release-type-radio me-1"> <span>OBL</span>
                     </label>
                     <label>
-                        <input type="radio" name="release_type_terminal" value="Other" class="release-type-radio me-1"> Other
+                        <input type="radio" name="release_type_terminal" value="Other" class="release-type-radio me-1"> <span>Other</span>
                     </label>
                 </div>
             </div>
@@ -1028,8 +1171,10 @@
                         <td></td>
                         <td></td>
                         <td>
-                            <span class="non-editable-label">M/M: </span>
-                            <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="width: 85%; min-width: 150px; display: inline-block;"></div>
+                            <div style="display: flex; align-items: center; white-space: nowrap;">
+                                <span class="non-editable-label" style="flex-shrink: 0; margin-right: 5px;">M/M: </span>
+                                <div contenteditable="true" class="editable-field mm-field" data-field-type="mm" style="flex-grow: 1; min-width: 150px; display: inline-block;"></div>
+                            </div>
                         </td>
                     </tr>
                     <!-- Add merged row at the bottom -->
