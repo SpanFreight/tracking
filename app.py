@@ -720,6 +720,30 @@ def register():
 def profile():
     return render_template('profile.html')
 
+# Add this new API endpoint for client autocomplete
+@app.route('/api/search-clients/<query>')
+@login_required
+def search_clients(query):
+    """API endpoint to search for clients by partial name"""
+    if not query or len(query) < 2:
+        return jsonify([])
+    
+    # Search for clients that match the query string (case-insensitive)
+    clients = Client.query.filter(
+        Client.name.ilike(f'%{query}%')
+    ).limit(10).all()
+    
+    results = []
+    for client in clients:
+        results.append({
+            'id': client.id,
+            'name': client.name,
+            'contact_person': client.contact_person or ""
+        })
+    
+    return jsonify(results)
+
+# Modify the add_container route to handle the client name autocomplete
 @app.route('/containers/add', methods=['GET', 'POST'])
 @login_required
 def add_container():
@@ -1038,10 +1062,28 @@ def add_container():
             if request.form.get('stripping_date'):
                 stripping_date = datetime.strptime(request.form.get('stripping_date'), '%Y-%m-%d')
                 
-            # Get client_id if provided
-            client_id = request.form.get('client_id')
-            if client_id == '':
-                client_id = None
+            # Handle client name from autocomplete instead of client_id
+            client_id = None
+            client_name = request.form.get('client_name', '').strip()
+            
+            if client_name:
+                # Try to find existing client by name (case insensitive)
+                client = Client.query.filter(Client.name.ilike(client_name)).first()
+                
+                if client:
+                    # Use existing client
+                    client_id = client.id
+                    logger.info(f"Using existing client: {client.name} (ID: {client.id})")
+                else:
+                    # Create new client with this name
+                    new_client = Client(
+                        name=client_name,
+                        created_at=datetime.utcnow()
+                    )
+                    db.session.add(new_client)
+                    db.session.flush()  # Get ID without committing
+                    client_id = new_client.id
+                    logger.info(f"Created new client: {client_name} (ID: {client_id})")
             
             # Check if container already exists
             existing_container = Container.query.filter_by(container_number=container_number).first()
@@ -3707,7 +3749,7 @@ def admin_reports():
     clients_with_containers = []
     for client in Client.query.all():
         container_count = Container.query.filter_by(client_id=client.id).count()
-        if container_count > 0:  # Only include clients with containers
+        if (container_count > 0):  # Only include clients with containers
             clients_with_containers.append({
                 'id': client.id,
                 'name': client.name,
