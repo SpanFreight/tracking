@@ -57,10 +57,6 @@
                         <a class="nav-link" href="{{ url_for('add_container') }}">
                             <i class="fas fa-box"></i> Add Container</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('add_vessel') }}">
-                            <i class="fas fa-ship"></i> Add Vessel</a>
-                    </li>
                     <!-- Add Client navigation item -->
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'clients' %}active{% endif %}" href="{{ url_for('clients') }}">
