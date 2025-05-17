@@ -528,12 +528,20 @@ def index():
     
     # Filter containers by status if specified
     if status_filter:
-        status_filtered = []
-        for container in containers:
-            current_status = container.get_current_status()
-            if current_status and current_status.status == status_filter:
-                status_filtered.append(container)
-        containers = status_filtered
+        if status_filter == 'other':
+            # Get all containers with status OTHER THAN loaded, discharged, emptied, or full
+            query = query.join(ContainerStatus, Container.id == ContainerStatus.container_id)\
+                        .filter(~ContainerStatus.status.in_(['loaded', 'discharged', 'emptied', 'full']))\
+                        .filter(ContainerStatus.id == db.session.query(func.max(ContainerStatus.id))\
+                            .filter(ContainerStatus.container_id == Container.id)\
+                            .scalar_subquery())
+        else:
+            status_filtered = []
+            for container in containers:
+                current_status = container.get_current_status()
+                if current_status and current_status.status == status_filter:
+                    status_filtered.append(container)
+            containers = status_filtered
     
     # Apply pagination to the filtered containers list
     pagination = Pagination(containers, page, per_page, 'index', 
