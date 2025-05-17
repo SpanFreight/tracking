@@ -18,8 +18,14 @@
                 <form method="POST" action="{{ url_for('add_container') }}">
                     <div class="mb-3">
                         <label for="container_number" class="form-label">Container Number</label>
-                        <input type="text" class="form-control" id="container_number" name="container_number" required>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="container_number" name="container_number" required>
+                            <button class="btn btn-outline-secondary" type="button" id="check-container-btn">
+                                <i class="fas fa-search"></i> Check
+                            </button>
+                        </div>
                         <div class="form-text">Enter the unique container number (e.g., ABCD1234567)</div>
+                        <div id="container-feedback" class="mt-1" style="display: none;"></div>
                     </div>
                     
                     <div class="mb-3">
@@ -90,6 +96,7 @@
                     <div class="mb-3">
                         <label for="bl_number" class="form-label">BL Number</label>
                         <input type="text" class="form-control" id="bl_number" name="bl_number">
+                        <div id="bl-feedback" class="form-text"></div>
                     </div>
                     
                     <div class="mb-3">
@@ -303,6 +310,106 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(event) {
         if (event.target !== clientInput && !suggestionsList.contains(event.target)) {
             suggestionsList.classList.add('d-none');
+        }
+    });
+
+    // Add container validation functionality
+    const containerNumberInput = document.getElementById('container_number');
+    const blNumberInput = document.getElementById('bl_number');
+    const checkContainerBtn = document.getElementById('check-container-btn');
+    const containerFeedback = document.getElementById('container-feedback');
+    const blFeedback = document.getElementById('bl-feedback');
+    let containerExists = false;
+    let existingBlNumber = '';
+    
+    // Check if a container already exists
+    function checkContainer() {
+        const containerNumber = containerNumberInput.value.trim();
+        if (!containerNumber) {
+            containerFeedback.style.display = 'none';
+            return;
+        }
+        
+        // Show loading state
+        containerFeedback.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin"></i> Checking...</span>';
+        containerFeedback.style.display = 'block';
+        
+        // Make API call to check container
+        fetch(`/api/container-check/${encodeURIComponent(containerNumber)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.exists) {
+                    containerExists = true;
+                    existingBlNumber = data.bl_number || '';
+                    
+                    // Auto-fill container type if available
+                    if (data.container_type) {
+                        const containerTypeSelect = document.getElementById('container_type');
+                        containerTypeSelect.value = data.container_type;
+                    }
+                    
+                    if (existingBlNumber) {
+                        containerFeedback.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Container already exists with BL number: ${existingBlNumber}. You can add it again with a different BL number.</span>`;
+                    } else {
+                        containerFeedback.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> Container already exists with no BL number. You can add it again with a BL number.</span>`;
+                    }
+                    
+                    // Update BL validation
+                    validateBlNumber();
+                } else {
+                    containerExists = false;
+                    existingBlNumber = '';
+                    containerFeedback.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Container number is available.</span>';
+                    blFeedback.innerHTML = '';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking container:', error);
+                containerFeedback.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> Error checking container.</span>';
+            });
+    }
+    
+    // Validate BL number against existing container
+    function validateBlNumber() {
+        if (!containerExists) return true;
+        
+        const blNumber = blNumberInput.value.trim();
+        
+        if (!blNumber) {
+            blFeedback.innerHTML = '<span class="text-danger">Please enter a BL number when adding a duplicate container.</span>';
+            return false;
+        }
+        
+        if (blNumber === existingBlNumber) {
+            blFeedback.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> This container already exists with this BL number.</span>';
+            return false;
+        } else {
+            blFeedback.innerHTML = '<span class="text-success"><i class="fas fa-check-circle"></i> Different BL number - container can be added.</span>';
+            return true;
+        }
+    }
+    
+    // Add event listeners
+    checkContainerBtn.addEventListener('click', checkContainer);
+    
+    containerNumberInput.addEventListener('blur', function() {
+        if (this.value.trim()) {
+            checkContainer();
+        }
+    });
+    
+    blNumberInput.addEventListener('input', validateBlNumber);
+    
+    // Add form validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(event) {
+        // Check if trying to add duplicate container with same BL
+        if (containerExists) {
+            if (!validateBlNumber()) {
+                event.preventDefault();
+                blNumberInput.focus();
+                return false;
+            }
         }
     });
 });

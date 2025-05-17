@@ -85,7 +85,7 @@ def load_user(user_id):
 # Define models here instead of importing them
 class Container(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    container_number = db.Column(db.String(20), unique=True, nullable=False)
+    container_number = db.Column(db.String(20), nullable=False)  # Remove unique=True constraint
     container_type = db.Column(db.String(20), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -105,6 +105,11 @@ class Container(db.Model):
     
     # Relationship with ContainerMovement
     movements = db.relationship('ContainerMovement', backref='container', lazy=True, cascade="all, delete-orphan")
+    
+    # Add composite unique constraint for container_number + bl_number
+    __table_args__ = (
+        db.UniqueConstraint('container_number', 'bl_number', name='uix_container_number_bl'),
+    )
     
     def __repr__(self):
         return f"Container('{self.container_number}', '{self.container_type}')"
@@ -808,11 +813,26 @@ def add_container():
                                 # Skip empty rows
                                 if not container_number or not container_type:
                                     continue
+                                
+                                # Check if BL number exists in the row
+                                bl_number = str(row.get('bl_number', '')).strip() if not pd.isna(row.get('bl_number', '')) else None
+                                
                                 # Check if container already exists
                                 existing_container = Container.query.filter_by(container_number=container_number).first()
                                 if existing_container:
-                                    error_count += 1
-                                    continue
+                                    # Only skip if BL number is missing or same as existing container
+                                    if not bl_number:
+                                        error_count += 1
+                                        logger.info(f"Skipping container {container_number}: already exists and no new BL number provided")
+                                        continue
+                                    
+                                    if existing_container.bl_number and bl_number == existing_container.bl_number:
+                                        error_count += 1
+                                        logger.info(f"Skipping container {container_number}: already exists with same BL number {bl_number}")
+                                        continue
+                                    
+                                    # Otherwise proceed with adding the container with a different BL
+                                    logger.info(f"Adding container {container_number} with different BL number: {bl_number}")
                                     
                                 # Handle client association if specified - check for client column case-insensitively
                                 client_id = None
@@ -821,22 +841,20 @@ def add_container():
                                 if client_column and not pd.isna(row[client_column]):
                                     client_name = str(row[client_column]).strip()
                                     if client_name:
-                                        # Try to find client by name (case-insensitive)
+                                        # Try to find existing client
                                         client = Client.query.filter(Client.name.ilike(client_name)).first()
                                         if client:
                                             client_id = client.id
-                                            logger.info(f"Associated container {container_number} with existing client {client.name} (ID: {client_id})")
                                         else:
-                                            # Create a new client with this name
+                                            # Create new client with this name
                                             new_client = Client(
                                                 name=client_name,
                                                 created_at=datetime.utcnow()
                                             )
                                             db.session.add(new_client)
-                                            db.session.flush()  # Flush to get the ID without committing
+                                            db.session.flush()
                                             client_id = new_client.id
                                             clients_created += 1
-                                            logger.info(f"Created new client '{client_name}' (ID: {client_id}) and associated with container {container_number}")
                                 
                                 new_container = Container(
                                     container_number=container_number,
@@ -844,7 +862,7 @@ def add_container():
                                     loading_port=map_location_codes(str(row.get('loading_port', '')).strip()) if not pd.isna(row.get('loading_port', '')) else None,
                                     final_destination=map_location_codes(str(row.get('final_destination', '')).strip()) if not pd.isna(row.get('final_destination', '')) else None,
                                     opr=str(row.get('opr', '')).strip() if not pd.isna(row.get('opr', '')) else None,
-                                    bl_number=str(row.get('bl_number', '')).strip() if not pd.isna(row.get('bl_number', '')) else None,
+                                    bl_number=bl_number,
                                     client_id=client_id  # Associate with client ID
                                 )
                                 
@@ -1096,9 +1114,19 @@ def add_container():
             
             # Check if container already exists
             existing_container = Container.query.filter_by(container_number=container_number).first()
-            if (existing_container):
-                flash('Container already exists!', 'danger')
-                return redirect(url_for('add_container'))
+            if existing_container:
+                # Only block if BL number is the same or empty
+                if not bl_number:
+                    flash('Container already exists! Please provide a different BL number to add it again.', 'danger')
+                    return redirect(url_for('add_container'))
+                
+                if existing_container.bl_number and bl_number == existing_container.bl_number:
+                    flash('Container already exists with the same BL number!', 'danger')
+                    return redirect(url_for('add_container'))
+                
+                # If we get here, the container exists but has a different BL number, so we'll add it as a new record
+                flash(f'Adding container {container_number} with a new BL number.', 'info')
+            
             new_container = Container(
                 container_number=container_number,
                 container_type=container_type,
@@ -4161,6 +4189,19 @@ def delete_client(id):
     return redirect(url_for('clients'))
 
 # ...existing code...
+
+@app.route('/api/container-check/<container_number>')
+def check_container_details(container_number):
+    """Check if a container exists and return its BL number for validation"""
+    container = Container.query.filter_by(container_number=container_number).first()
+    if container:
+        return jsonify({
+            'exists': True,
+            'container_id': container.id,
+            'bl_number': container.bl_number,
+            'container_type': container.container_type
+        })
+    return jsonify({'exists': False})
 
 if __name__ == '__main__':
     with app.app_context():
