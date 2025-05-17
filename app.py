@@ -529,12 +529,13 @@ def index():
     # Filter containers by status if specified
     if status_filter:
         if status_filter == 'other':
-            # Get all containers with status OTHER THAN loaded, discharged, emptied, or full
-            query = query.join(ContainerStatus, Container.id == ContainerStatus.container_id)\
-                        .filter(~ContainerStatus.status.in_(['loaded', 'discharged', 'emptied', 'full']))\
-                        .filter(ContainerStatus.id == db.session.query(func.max(ContainerStatus.id))\
-                            .filter(ContainerStatus.container_id == Container.id)\
-                            .scalar_subquery())
+            # Filter containers with status OTHER THAN loaded, discharged, emptied, or full
+            status_filtered = []
+            for container in containers:
+                current_status = container.get_current_status()
+                if current_status and current_status.status not in ['loaded', 'discharged', 'emptied', 'full']:
+                    status_filtered.append(container)
+            containers = status_filtered
         else:
             status_filtered = []
             for container in containers:

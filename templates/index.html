@@ -191,6 +191,11 @@
                             style="display: {% if status_filter == 'emptied' %}inline-block{% else %}none{% endif %};">
                         <i class="fas fa-box"></i> Mark as Full
                     </button>
+                    <!-- New button for emptying "other" status containers -->
+                    <button type="button" id="bulk-other-to-emptied-btn" class="btn btn-info bulk-action-btn"
+                            style="display: {% if status_filter == 'other' %}inline-block{% else %}none{% endif %};">
+                        <i class="fas fa-box-open"></i> Empty Selected Containers
+                    </button>
                 </div>
             </div>
         </div>
@@ -500,6 +505,43 @@
         </div>
     </div>
 </div>
+
+<!-- Add a new modal for emptying "other" status containers -->
+<div class="modal fade" id="bulkOtherToEmptiedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">Empty Selected "Other" Status Containers</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulk-other-to-emptied-form">
+                    <div class="mb-3">
+                        <label for="bulk-other-to-emptied-date" class="form-label">Operation Date</label>
+                        <input type="date" class="form-control" id="bulk-other-to-emptied-date" required 
+                               value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulk-other-to-emptied-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="bulk-other-to-emptied-location" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulk-other-to-emptied-notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="bulk-other-to-emptied-notes" rows="3">Empty Container</textarea>
+                    </div>
+                    <div class="alert alert-info">
+                        <h6>Selected Containers (<span id="modal-other-to-emptied-count">0</span>):</h6>
+                        <ul id="selected-other-to-emptied-containers-list" class="mb-0"></ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info" id="confirm-bulk-other-to-emptied">Confirm Update</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -660,6 +702,7 @@
             updateModalContainersList('selected-discharge-containers-list', 'modal-discharge-count');
             updateModalContainersList('selected-emptied-containers-list', 'modal-emptied-count');
             updateModalContainersList('selected-full-containers-list', 'modal-full-count');
+            updateModalContainersList('selected-other-to-emptied-containers-list', 'modal-other-to-emptied-count');
             
             // Enable/disable bulk action buttons based on selection
             $('.bulk-action-btn').prop('disabled', selectedCount === 0);
@@ -737,6 +780,11 @@
             prepareStatusModal('full', 'bulkFullModal');
         });
         
+        // Add the new modal handler
+        $('#bulk-other-to-emptied-btn').click(function() {
+            prepareStatusModal('emptied', 'bulkOtherToEmptiedModal');
+        });
+        
         function loadAvailableVessels() {
             $.ajax({
                 url: '/api/vessels/available',
@@ -812,6 +860,26 @@
         $('#confirm-bulk-discharge').click(handleBulkDischarge);
         $('#confirm-bulk-emptied').click(function() { handleBulkStatus('emptied'); });
         $('#confirm-bulk-full').click(function() { handleBulkStatus('full'); });
+        
+        // Add handler for new "Empty Other Containers" button
+        $('#confirm-bulk-other-to-emptied').click(function() {
+            const date = $('#bulk-other-to-emptied-date').val();
+            const location = $('#bulk-other-to-emptied-location').val();
+            const notes = $('#bulk-other-to-emptied-notes').val();
+            
+            if (!date || !location) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            performBulkOperation('/containers/bulk-status-update', {
+                container_ids: getSelectedContainerIds(),
+                status: 'emptied',
+                date: date,
+                location: location,
+                notes: notes
+            }, 'bulkOtherToEmptiedModal');
+        });
         
         function handleBulkLoad() {
             const vesselId = $('#bulk-vessel-select').val();
