@@ -288,8 +288,8 @@
                             {{ container.stripping_date.strftime('%Y-%m-%d') if container.stripping_date else 'N/A' }}
                         </td>
                         <td>
-                            {% if container.stripping_date %}
-                                {{ (today - container.stripping_date.date()).days }}
+                            {% if container.stripping_date and container.arrival_date %}
+                                {{ (container.stripping_date.date() - container.arrival_date.date()).days }}
                             {% else %}
                                 N/A
                             {% endif %}
