@@ -191,6 +191,11 @@
                             style="display: {% if status_filter == 'emptied' %}inline-block{% else %}none{% endif %};">
                         <i class="fas fa-box"></i> Mark as Full
                     </button>
+                    <!-- New button for marking full containers as delivered to customer -->
+                    <button type="button" id="bulk-full-delivered-btn" class="btn btn-danger bulk-action-btn"
+                            style="display: {% if status_filter == 'full' %}inline-block{% else %}none{% endif %};">
+                        <i class="fas fa-truck"></i> Mark as Delivery to Customer
+                    </button>
                     <!-- New button for emptying "other" status containers -->
                     <button type="button" id="bulk-other-to-emptied-btn" class="btn btn-info bulk-action-btn"
                             style="display: {% if status_filter == 'other' %}inline-block{% else %}none{% endif %};">
@@ -274,6 +279,8 @@
                                 <span class="badge bg-info">Emptied</span>
                                 {% elif latest_status.status == 'full' %}
                                 <span class="badge bg-primary">Full</span>
+                                {% elif latest_status.status == 'full_deliveried' %}
+                                <span class="badge bg-purple" style="background-color: #9370DB;">Full Deliveried</span>
                                 {% else %}
                                 <span class="badge bg-secondary">{{ latest_status.status }}</span>
                                 {% endif %}
@@ -542,6 +549,43 @@
         </div>
     </div>
 </div>
+
+<!-- Add Modal for Marking as Delivered to Customer -->
+<div class="modal fade" id="bulkFullDeliveredModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Mark Containers as Delivery to Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bulk-full-delivered-form">
+                    <div class="mb-3">
+                        <label for="bulk-full-delivered-date" class="form-label">Operation Date</label>
+                        <input type="date" class="form-control" id="bulk-full-delivered-date" required 
+                               value="{{ now.strftime('%Y-%m-%d') }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulk-full-delivered-location" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="bulk-full-delivered-location" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="bulk-full-delivered-notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="bulk-full-delivered-notes" rows="3">Container delivered to customer</textarea>
+                    </div>
+                    <div class="alert alert-info">
+                        <h6>Selected Containers (<span id="modal-full-delivered-count">0</span>):</h6>
+                        <ul id="selected-full-delivered-containers-list" class="mb-0"></ul>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-bulk-full-delivered">Confirm Delivery</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -703,6 +747,8 @@
             updateModalContainersList('selected-emptied-containers-list', 'modal-emptied-count');
             updateModalContainersList('selected-full-containers-list', 'modal-full-count');
             updateModalContainersList('selected-other-to-emptied-containers-list', 'modal-other-to-emptied-count');
+            // Add the new modal list update
+            updateModalContainersList('selected-full-delivered-containers-list', 'modal-full-delivered-count');
             
             // Enable/disable bulk action buttons based on selection
             $('.bulk-action-btn').prop('disabled', selectedCount === 0);
@@ -785,6 +831,11 @@
             prepareStatusModal('emptied', 'bulkOtherToEmptiedModal');
         });
         
+        // Add handler for the new Full Delivered button
+        $('#bulk-full-delivered-btn').click(function() {
+            prepareFullDeliveredModal();
+        });
+        
         function loadAvailableVessels() {
             $.ajax({
                 url: '/api/vessels/available',
@@ -851,6 +902,41 @@
             $(`#${modalId}`).modal('show');
         }
         
+        // New function specifically for preparing the Full Delivered modal
+        function prepareFullDeliveredModal() {
+            const selectedIds = getSelectedContainerIds();
+            if (selectedIds.length === 0) {
+                alert('Please select at least one container');
+                return;
+            }
+            
+            // Get the first selected container's ID to fetch its location
+            const firstContainerId = selectedIds[0];
+            
+            // Use AJAX to get the container's current location
+            $.ajax({
+                url: `/api/container/${firstContainerId}/location`,
+                type: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        // Set the location field to the container's current location
+                        $('#bulk-full-delivered-location').val(response.location || "{{ location_filter }}");
+                    } else {
+                        // Fallback to using the current filter location
+                        $('#bulk-full-delivered-location').val("{{ location_filter }}");
+                    }
+                    
+                    // Show the modal after setting the location
+                    $('#bulkFullDeliveredModal').modal('show');
+                },
+                error: function() {
+                    // On error, fallback to the location filter
+                    $('#bulk-full-delivered-location').val("{{ location_filter }}");
+                    $('#bulkFullDeliveredModal').modal('show');
+                }
+            });
+        }
+        
         function getSelectedContainerIds() {
             return containerSelections.getSelectedIds();
         }
@@ -879,6 +965,26 @@
                 location: location,
                 notes: notes
             }, 'bulkOtherToEmptiedModal');
+        });
+        
+        // Add handler for Full Delivered button
+        $('#confirm-bulk-full-delivered').click(function() {
+            const date = $('#bulk-full-delivered-date').val();
+            const location = $('#bulk-full-delivered-location').val();
+            const notes = $('#bulk-full-delivered-notes').val();
+            
+            if (!date || !location) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            performBulkOperation('/containers/bulk-status-update', {
+                container_ids: getSelectedContainerIds(),
+                status: 'full_deliveried',
+                date: date,
+                location: location,
+                notes: notes || 'Container delivered to customer'
+            }, 'bulkFullDeliveredModal');
         });
         
         function handleBulkLoad() {

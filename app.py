@@ -538,7 +538,15 @@ def index():
             status_filtered = []
             for container in containers:
                 current_status = container.get_current_status()
-                if current_status and current_status.status not in ['loaded', 'discharged', 'emptied', 'full']:
+                if current_status and current_status.status not in ['loaded', 'discharged', 'emptied', 'full', 'full_deliveried']:
+                    status_filtered.append(container)
+            containers = status_filtered
+        elif status_filter == 'full':
+            # Special case for full status - include 'full_deliveried' as well
+            status_filtered = []
+            for container in containers:
+                current_status = container.get_current_status()
+                if current_status and current_status.status in ['full', 'full_deliveried']:
                     status_filtered.append(container)
             containers = status_filtered
         else:
@@ -4329,6 +4337,24 @@ def check_container_details(container_number):
             'container_type': container.container_type
         })
     return jsonify({'exists': False})
+
+@app.route('/api/container/<int:id>/location')
+@login_required
+def get_container_location(id):
+    """Get the current location of a container"""
+    container = Container.query.get_or_404(id)
+    current_status = container.get_current_status()
+    
+    if (current_status and current_status.location):
+        return jsonify({
+            'success': True,
+            'location': current_status.location
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': 'No location found for this container'
+        })
 
 if __name__ == '__main__':
     with app.app_context():
