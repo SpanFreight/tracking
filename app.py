@@ -928,27 +928,18 @@ def add_container():
                                     has_status = all(col in batch_df.columns for col in ['status', 'date', 'location'])
                                     
                                     if has_status and not pd.isna(row.get('status')) and not pd.isna(row.get('date')) and not pd.isna(row.get('location')):
-                                        status = str(row.get('status')).strip()
-                                        status_date = None
+                                        status = str(row['status']).strip().lower()
                                         
-                                        # Parse date - try multiple formats
+                                        # Parse the date
                                         try:
-                                            if isinstance(row['date'], str):
-                                                date_formats = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y', '%m-%d-%Y']
-                                                for format in date_formats:
-                                                    try:
-                                                        status_date = datetime.strptime(row['date'], format)
-                                                        break
-                                                    except ValueError:
-                                                        continue
+                                            if isinstance(row['date'], pd.Timestamp):
+                                                status_date = row['date'].to_pydatetime()
                                             else:
-                                                # Handle numeric/datetime from pandas
-                                                status_date = pd.to_datetime(row['date']).to_pydatetime()
-                                        except Exception:
-                                            # If all parsing fails, use today's date
-                                            status_date = datetime.now()
+                                                status_date = datetime.strptime(str(row['date']), '%Y-%m-%d')
+                                        except Exception as e:
+                                            logger.error(f"Error parsing date {row['date']}: {str(e)}")
+                                            status_date = datetime.utcnow()
                                         
-                                        # Map location codes
                                         status_location = map_location_codes(str(row['location']).strip())
                                         # Add notes if available
                                         notes = str(row.get('notes', '')).strip() if not pd.isna(row.get('notes', '')) else None
@@ -962,53 +953,62 @@ def add_container():
                                         )
                                         db.session.add(container_status)
                                         
-                                        # Handle vessel information if provided
-                                        if 'vessel' in batch_df.columns and not pd.isna(row.get('vessel')):
-                                            vessel_input = str(row.get('vessel')).strip()
-                                            if vessel_input:
-                                                # Parse vessel name and voyage number from format "VESSEL NAME V1234"
-                                                voyage_number = None
-                                                vessel_name = vessel_input
+                                        # Handle vessel information if provided - FIXED VESSEL ASSOCIATION
+                                        if status.lower() == 'loaded':
+                                            vessel_name = None
+                                            voyage_number = None
+                                            
+                                            # Check if vessel column exists and has a value
+                                            if 'vessel' in batch_df.columns and not pd.isna(row.get('vessel')):
+                                                vessel_info = str(row['vessel']).strip()
                                                 
-                                                # Check for the format with "V" followed by digits
-                                                import re
-                                                voyage_match = re.search(r'V(\d+)$', vessel_input)
-                                                if voyage_match:
-                                                    # Extract the voyage number (without the "V")
-                                                    voyage_number = voyage_match.group(1)
-                                                    # Extract the vessel name (everything before the "V" and number)
-                                                    vessel_name = vessel_input[:voyage_match.start()].strip()
+                                                # Try to extract vessel name and voyage number
+                                                # Common format: "VESSEL NAME V1234" where V1234 is the voyage number
+                                                if ' V' in vessel_info:
+                                                    # Split by " V" and take the voyage part
+                                                    parts = vessel_info.split(' V', 1)
+                                                    if len(parts) == 2:
+                                                        vessel_name = parts[0].strip()
+                                                        voyage_number = 'V' + parts[1].strip()
+                                                else:
+                                                    # No voyage number format, use the whole value as vessel name
+                                                    vessel_name = vessel_info
                                                 
-                                                # First try to find vessel by name and voyage number if available
+                                                # Try to find the vessel in database
                                                 vessel = None
-                                                if voyage_number:
+                                                if vessel_name and voyage_number:
+                                                    # Look for exact match on name and IMO/voyage
                                                     vessel = Vessel.query.filter(
                                                         Vessel.name.ilike(vessel_name),
-                                                        Vessel.imo_number == voyage_number
+                                                        Vessel.imo_number.ilike(voyage_number)
                                                     ).first()
                                                 
-                                                # If not found with voyage, try just the name
-                                                if not vessel:
-                                                    vessel = Vessel.query.filter(Vessel.name.ilike(vessel_name)).first()
-                                                
-                                                if vessel and status_date and status == 'loaded':
-                                                    # If status is "loaded" and we have a vessel, create a movement record
+                                                if vessel_name and not vessel:
+                                                    # Try just by name as fallback
+                                                    vessel = Vessel.query.filter(
+                                                        Vessel.name.ilike(vessel_name)
+                                                    ).first()
+                                                    
+                                                    if not vessel:
+                                                        # Track vessels not found for warning message
+                                                        vessels_not_found.add(vessel_info)
+                                                    
+                                                # Create container movement if vessel is found
+                                                if vessel:
                                                     movement = ContainerMovement(
                                                         operation_type='load',
                                                         operation_date=status_date,
                                                         location=status_location,
-                                                        notes=f"Loaded onto vessel {vessel.name} (via import)",
+                                                        notes=f"Automatically created from bulk import: {notes or 'No notes'}",
                                                         container_id=container.id,
                                                         vessel_id=vessel.id
                                                     )
                                                     db.session.add(movement)
-                                                elif vessel is None and vessel_name not in vessels_not_found:
-                                                    # Keep track of vessel names that weren't found
-                                                    vessels_not_found.add(vessel_name)
-                                
-                                # Step 4: Count successfully added containers and commit
-                                success_count += len(container_objects)
-                                db.session.commit()
+                                                    logger.info(f"Created load movement for container {container.container_number} onto vessel {vessel.name}")
+                                    
+                                    # Step 4: Count successfully added containers and commit
+                                    success_count += len(container_objects)
+                                    db.session.commit()
                                 
                                 # Step 5: Clear SQLAlchemy session to free memory
                                 db.session.expunge_all()
@@ -2276,7 +2276,7 @@ def update_vessel_statuses():
                 container_count += 1
             
             if container_count > 0:
-                logger.info(f"Updated arrival date for {container_count} containers on vessel {vessel.name} to {vessel.eta or today}")
+                logger.info(f"Updated arrival date for {container_count} containers to match vessel arrival.")
             
     if updated_count > 0:
         db.session.commit()
@@ -3675,9 +3675,39 @@ def admin_reports():
         flash('You do not have permission to access this page.', 'danger')
         return redirect(url_for('index'))
     
+    # Get date range from query parameters
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    
+    # Today's date for default date range
+    today = datetime.now().date()
+    
+    # Parse dates if provided
+    start_date = None
+    end_date = None
+    
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        except ValueError:
+            start_date = datetime.now() - timedelta(days=30)
+    else:
+        # Default to last 30 days
+        start_date = datetime.now() - timedelta(days=30)
+    
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+            # Set end date to end of day for inclusive filtering
+            end_date = end_date.replace(hour=23, minute=59, second=59)
+        except ValueError:
+            end_date = datetime.now()
+    else:
+        # Default to today (end of day)
+        end_date = datetime.now().replace(hour=23, minute=59, second=59)
+    
     # Get basic statistics for the dashboard
     total_container_count = Container.query.count()
-    total_vessel_count = Vessel.query.count()
     
     # Get latest status subquery (reuse from other queries)
     latest_status_subquery = db.session.query(
@@ -3698,118 +3728,23 @@ def admin_reports():
             .count()
         status_counts[status] = count
     
-    # Get vessel statistics
-    vessels_with_containers = db.session.query(Vessel, db.func.count(ContainerMovement.container_id.distinct()))\
-        .join(ContainerMovement, ContainerMovement.vessel_id == Vessel.id)\
-        .filter(ContainerMovement.operation_type == 'load')\
-        .group_by(Vessel.id)\
-        .order_by(db.func.count(ContainerMovement.container_id.distinct()).desc())\
-        .limit(5)\
-        .all()
-    
-    top_vessels = [
-        {
-            'name': vessel.name,
-            'count': container_count,
-            'voyage': vessel.imo_number
-        }
-        for vessel, container_count in vessels_with_containers
-    ]
-    
-    # Get container movement statistics (last 30 days)
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    movement_stats = db.session.query(
-        ContainerMovement.operation_type,
-        db.func.count()
-    ).filter(ContainerMovement.created_at >= thirty_days_ago)\
-     .group_by(ContainerMovement.operation_type)\
-     .all()
-    
-    movement_counts = {op_type: count for op_type, count in movement_stats}
-    
-    # Get location statistics
-    location_stats = db.session.query(
-        ContainerStatus.location,
-        db.func.count()
-    ).filter(ContainerStatus.created_at >= thirty_days_ago)\
-     .group_by(ContainerStatus.location)\
-     .order_by(db.func.count().desc())\
-     .limit(5)\
-     .all()
-    
-    top_locations = [{'location': loc, 'count': count} for loc, count in location_stats]
-    
-    # Add 180-day summary data
-    one_eighty_days_ago = datetime.now() - timedelta(days=180)
-
-    # Check database dialect without relying on db.session.bind
-    # Instead, check the database URI directly
-    database_uri = app.config['SQLALCHEMY_DATABASE_URI'].lower()
-    is_postgresql = 'postgresql' in database_uri
-
-    # Get monthly container counts for the last 180 days
-    if is_postgresql:
-        # PostgreSQL uses to_char for date formatting
-        date_format_func = db.func.to_char(
-            ContainerMovement.operation_date, 
-            'YYYY-MM'
-        ).label('month')
-    else:
-        # SQLite uses strftime
-        date_format_func = db.func.strftime(
-            '%Y-%m', 
-            ContainerMovement.operation_date
-        ).label('month')
-    
-    # Get monthly container counts for the last 180 days
-    monthly_data = db.session.query(
-        date_format_func,
-        ContainerMovement.operation_type,
-        db.func.count().label('count')
-    ).filter(ContainerMovement.operation_date >= one_eighty_days_ago)\
-     .group_by('month', ContainerMovement.operation_type)\
-     .order_by('month').all()
-    
-    # Format the monthly data for display
-    months = sorted(list(set(month for month, _, _ in monthly_data)))
-    monthly_summary = {
-        'labels': months,
-        'load_counts': [],
-        'discharge_counts': []
-    }
-    
-    for month in months:
-        # Get load count for this month
-        load_count = next((count for m, op_type, count in monthly_data 
-                          if m == month and op_type == 'load'), 0)
-        monthly_summary['load_counts'].append(load_count)
-        
-        # Get discharge count for this month
-        discharge_count = next((count for m, op_type, count in monthly_data 
-                              if m == month and op_type == 'discharge'), 0)
-        monthly_summary['discharge_counts'].append(discharge_count)
-    
-    # Get 180-day total statistics
-    stats_180_days = {
-        'total_containers': Container.query.filter(Container.created_at >= one_eighty_days_ago).count(),
-        'total_movements': ContainerMovement.query.filter(ContainerMovement.operation_date >= one_eighty_days_ago).count(),
-        'loaded': db.session.query(db.func.count()).filter(
-            ContainerMovement.operation_type == 'load',
-            ContainerMovement.operation_date >= one_eighty_days_ago
-        ).scalar() or 0,
-        'discharged': db.session.query(db.func.count()).filter(
-            ContainerMovement.operation_type == 'discharge',
-            ContainerMovement.operation_date >= one_eighty_days_ago
-        ).scalar() or 0
-    }
-    
     # Add client statistics
     client_count = Client.query.count()
     
-    # Get clients with their container counts
+    # Get clients with their container counts (with date filter)
     clients_with_containers = []
     for client in Client.query.all():
-        container_count = Container.query.filter_by(client_id=client.id).count()
+        if start_date and end_date:
+            # Count containers created within date range
+            container_count = Container.query.filter(
+                Container.client_id == client.id,
+                Container.created_at >= start_date,
+                Container.created_at <= end_date
+            ).count()
+        else:
+            # Count all containers
+            container_count = Container.query.filter_by(client_id=client.id).count()
+            
         if (container_count > 0):  # Only include clients with containers
             clients_with_containers.append({
                 'id': client.id,
@@ -3824,18 +3759,210 @@ def admin_reports():
     # Take top 10 clients
     top_clients = clients_with_containers[:10]
     
+    # ========= LOADING PORT STATISTICS =========
+    
+    # Aggregate containers by loading port (with date filter)
+    loading_port_stats = []
+    loading_port_counts = {}
+    
+    # Use date filter for container query
+    container_query = Container.query
+    if start_date and end_date:
+        container_query = container_query.filter(
+            Container.created_at >= start_date,
+            Container.created_at <= end_date
+        )
+    
+    for container in container_query.all():
+        if container.loading_port:
+            port_name = container.loading_port
+            if port_name in loading_port_counts:
+                loading_port_counts[port_name] += 1
+            else:
+                loading_port_counts[port_name] = 1
+    
+    # Calculate total containers with loading port info
+    total_with_loading_port = sum(loading_port_counts.values())
+    
+    # Format data for template
+    for port_name, count in loading_port_counts.items():
+        percentage = (count / total_with_loading_port * 100) if total_with_loading_port > 0 else 0
+        loading_port_stats.append({
+            'name': port_name,
+            'count': count,
+            'percentage': percentage,
+            'total': total_with_loading_port
+        })
+    
+    # Sort by count (descending)
+    loading_port_stats.sort(key=lambda x: x['count'], reverse=True)
+    
+    # ========= VESSEL OPERATIONS STATISTICS WITH DATE FILTER =========
+    
+    # Prepare vessel operation statistics
+    vessel_stats = []
+    active_vessels = Vessel.query.all()
+    
+    for vessel in active_vessels:
+        # Get all load movements for this vessel with date filter
+        load_movements_query = ContainerMovement.query.filter_by(
+            vessel_id=vessel.id,
+            operation_type='load'
+        )
+        
+        if start_date and end_date:
+            load_movements_query = load_movements_query.filter(
+                ContainerMovement.operation_date >= start_date,
+                ContainerMovement.operation_date <= end_date
+            )
+            
+        load_movements = load_movements_query.all()
+        
+        # Get all discharge movements for this vessel with date filter
+        discharge_movements_query = ContainerMovement.query.filter_by(
+            vessel_id=vessel.id,
+            operation_type='discharge'
+        )
+        
+        if start_date and end_date:
+            discharge_movements_query = discharge_movements_query.filter(
+                ContainerMovement.operation_date >= start_date,
+                ContainerMovement.operation_date <= end_date
+            )
+            
+        discharge_movements = discharge_movements_query.all()
+        
+        # Count unique container IDs for load operations
+        loaded_container_ids = set(movement.container_id for movement in load_movements)
+        total_loaded = len(loaded_container_ids)
+        
+        # Count unique container IDs for discharge operations
+        discharged_container_ids = set(movement.container_id for movement in discharge_movements)
+        discharged = len(discharged_container_ids)
+        
+        # Calculate remaining containers (still on vessel)
+        remaining = vessel.get_loaded_containers()
+        remaining_count = len(remaining)
+        
+        # Get loading ports distribution
+        loading_ports = {}
+        for movement in load_movements:
+            port = movement.location
+            if port in loading_ports:
+                loading_ports[port] += 1
+            else:
+                loading_ports[port] = 1
+        
+        # Only add vessels with activity
+        if total_loaded > 0 or discharged > 0:
+            vessel_stats.append({
+                'id': vessel.id,
+                'name': vessel.name,
+                'voyage': vessel.imo_number,
+                'total_loaded': total_loaded,
+                'discharged': discharged,
+                'remaining': remaining_count,
+                'loading_ports': loading_ports
+            })
+    
+    # Sort vessels by total loaded (descending)
+    vessel_stats.sort(key=lambda x: x['total_loaded'], reverse=True)
+    
+    # ========= MORONI IMPORT/EXPORT STATISTICS =========
+    
+    # Calculate TEU values based on container type
+    def calculate_teu(container_type):
+        if container_type.startswith('20'):
+            return 1.0
+        elif container_type.startswith('40') or container_type.startswith('45'):
+            return 2.0
+        elif container_type.startswith('22'):
+            return 1.1  # 22' containers are sometimes counted as 1.1 TEU
+        else:
+            return 1.0  # Default to 1 TEU for unknown types
+    
+    # Get all container movements for Moroni
+    moroni_movements_query = ContainerMovement.query.filter(
+        db.or_(
+            ContainerMovement.location == 'Moroni',
+            ContainerMovement.location.ilike('%moroni%')
+        )
+    )
+    
+    if start_date and end_date:
+        moroni_movements_query = moroni_movements_query.filter(
+            ContainerMovement.operation_date >= start_date,
+            ContainerMovement.operation_date <= end_date
+        )
+    
+    moroni_movements = moroni_movements_query.all()
+    
+    # Group by container type and operation (import/export)
+    container_types = {}  # Will store stats by container type
+    
+    for movement in moroni_movements:
+        # Get the container associated with this movement
+        container = Container.query.get(movement.container_id)
+        if not container:
+            continue
+            
+        container_type = container.container_type
+        
+        # Initialize counter for this container type if not exists
+        if container_type not in container_types:
+            container_types[container_type] = {
+                'type': container_type,
+                'imported': 0,
+                'exported': 0,
+                'teu_imported': 0,
+                'teu_exported': 0
+            }
+        
+        # Count imports (discharge operations) and exports (load operations)
+        teu = calculate_teu(container_type)
+        
+        if movement.operation_type == 'discharge':
+            # Discharged at Moroni = imported
+            container_types[container_type]['imported'] += 1
+            container_types[container_type]['teu_imported'] += teu
+        elif movement.operation_type == 'load':
+            # Loaded at Moroni = exported
+            container_types[container_type]['exported'] += 1
+            container_types[container_type]['teu_exported'] += teu
+    
+    # Calculate balance for each container type
+    moroni_stats = {'types': [], 'total_imported': 0, 'total_exported': 0, 
+                   'total_teu_imported': 0, 'total_teu_exported': 0}
+    
+    for container_type, stats in container_types.items():
+        # Calculate balance (imported - exported)
+        stats['balance'] = stats['imported'] - stats['exported']
+        
+        # Add to totals
+        moroni_stats['total_imported'] += stats['imported']
+        moroni_stats['total_exported'] += stats['exported']
+        moroni_stats['total_teu_imported'] += stats['teu_imported']
+        moroni_stats['total_teu_exported'] += stats['teu_exported']
+        
+        # Add to types list
+        moroni_stats['types'].append(stats)
+    
+    # Calculate overall balance
+    moroni_stats['total_balance'] = moroni_stats['total_imported'] - moroni_stats['total_exported']
+    
+    # Sort container types by total volume (imported + exported)
+    moroni_stats['types'].sort(key=lambda x: x['imported'] + x['exported'], reverse=True)
+    
     return render_template('admin/reports.html',
                           total_container_count=total_container_count,
-                          total_vessel_count=total_vessel_count,
                           status_counts=status_counts,
-                          top_vessels=top_vessels,
-                          movement_counts=movement_counts,
-                          top_locations=top_locations,
-                          monthly_summary=monthly_summary,
-                          stats_180_days=stats_180_days,
-                          # Add client data
                           client_count=client_count,
-                          top_clients=top_clients)
+                          top_clients=top_clients,
+                          vessel_stats=vessel_stats,
+                          loading_port_stats=loading_port_stats,
+                          moroni_stats=moroni_stats,
+                          today=today,
+                          timedelta=timedelta)
 
 # Add API endpoints to feed chart data
 @app.route('/api/reports/container-status')
