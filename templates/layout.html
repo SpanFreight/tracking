@@ -46,15 +46,15 @@
                 {% if request.endpoint != 'login' %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">
+                        <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
                             <i class="fas fa-tachometer-alt"></i> Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('vessels') }}">
+                        <a class="nav-link {% if request.endpoint == 'vessels' %}active{% endif %}" href="{{ url_for('vessels') }}">
                             <i class="fas fa-ship"></i> Vessels</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('add_container') }}">
+                        <a class="nav-link {% if request.endpoint == 'add_container' %}active{% endif %}" href="{{ url_for('add_container') }}">
                             <i class="fas fa-box"></i> Add Container</a>
                     </li>
                     <!-- Add Client navigation item -->
