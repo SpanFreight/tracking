@@ -544,10 +544,19 @@ def index():
         elif status_filter == 'full':
             # Special case for full status - include 'full_deliveried' as well
             status_filtered = []
+            
+            # Get the full type sub-filter
+            full_type = request.args.get('full_type', 'all')
+            
             for container in containers:
                 current_status = container.get_current_status()
-                if current_status and current_status.status in ['full', 'full_deliveried']:
-                    status_filtered.append(container)
+                if current_status:
+                    if full_type == 'all' and current_status.status in ['full', 'full_deliveried']:
+                        status_filtered.append(container)
+                    elif full_type == 'full_only' and current_status.status == 'full':
+                        status_filtered.append(container)
+                    elif full_type == 'full_deliveried' and current_status.status == 'full_deliveried':
+                        status_filtered.append(container)
             containers = status_filtered
         else:
             status_filtered = []
@@ -561,6 +570,7 @@ def index():
     pagination = Pagination(containers, page, per_page, 'index', 
                            location=location_filter,
                            status=status_filter,  # Pass status filter to pagination for URL preservation
+                           full_type=request.args.get('full_type', 'all'),  # Add full_type to pagination
                            sort=sort_by, 
                            order=sort_order,
                            search=search_term)

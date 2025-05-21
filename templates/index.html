@@ -205,6 +205,31 @@
             </div>
         </div>
         
+        <!-- Add this after your existing status filter buttons, but before the container list -->
+        {% if status_filter == 'full' %}
+        <div class="mb-3">
+            <div class="d-flex justify-content-end">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-info"><i class="fas fa-filter me-1"></i> Full Filter:</span>
+                    <div class="btn-group btn-group-sm">
+                        <a href="{{ url_for('index', location=location_filter, status='full', full_type='all', sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}" 
+                           class="btn {% if request.args.get('full_type', 'all') == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            All
+                        </a>
+                        <a href="{{ url_for('index', location=location_filter, status='full', full_type='full_only', sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}" 
+                           class="btn {% if request.args.get('full_type') == 'full_only' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            Full Only
+                        </a>
+                        <a href="{{ url_for('index', location=location_filter, status='full', full_type='full_deliveried', sort=sort_by, order=sort_order, search=request.args.get('search', '')) }}" 
+                           class="btn {% if request.args.get('full_type') == 'full_deliveried' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                            Deliveried
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
         <div class="table-responsive">
             <table class="table table-striped table-hover">
                 <thead>
