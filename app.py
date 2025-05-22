@@ -755,10 +755,81 @@ def register():
     return render_template('register.html')
 
 # Protected routes should use @login_required decorator
-@app.route('/profile')
+@app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    return render_template('profile.html')
+    # Initialize form errors
+    form_errors = {}
+    success_message = None
+    
+    if request.method == 'POST':
+        # Determine which form was submitted
+        form_type = request.form.get('form_type')
+        
+        if form_type == 'profile_info':
+            # Handle profile information update (username, email)
+            username = request.form.get('username', '').strip()
+            email = request.form.get('email', '').strip()
+            
+            # Validate inputs
+            if not username:
+                form_errors['username'] = 'Username cannot be empty'
+            
+            if not email:
+                form_errors['email'] = 'Email cannot be empty'
+            elif '@' not in email:
+                form_errors['email'] = 'Please enter a valid email address'
+                
+            # Check if username or email already exists (but ignore current user)
+            if username != current_user.username:
+                existing_user = User.query.filter_by(username=username).first()
+                if existing_user:
+                    form_errors['username'] = 'Username already taken'
+                    
+            if email != current_user.email:
+                existing_email = User.query.filter_by(email=email).first()
+                if existing_email:
+                    form_errors['email'] = 'Email already registered'
+            
+            # If no validation errors, update the user
+            if not form_errors:
+                current_user.username = username
+                current_user.email = email
+                db.session.commit()
+                success_message = 'Profile updated successfully!'
+                
+        elif form_type == 'change_password':
+            # Handle password change
+            current_password = request.form.get('current_password', '')
+            new_password = request.form.get('new_password', '')
+            confirm_password = request.form.get('confirm_password', '')
+            
+            # Validate inputs
+            if not current_password:
+                form_errors['current_password'] = 'Please enter your current password'
+            elif not current_user.check_password(current_password):
+                form_errors['current_password'] = 'Current password is incorrect'
+                
+            if not new_password:
+                form_errors['new_password'] = 'New password cannot be empty'
+            elif len(new_password) < 6:
+                form_errors['new_password'] = 'Password must be at least 6 characters'
+                
+            if new_password != confirm_password:
+                form_errors['confirm_password'] = 'Passwords do not match'
+                
+            # If no validation errors, update the password
+            if not form_errors:
+                current_user.set_password(new_password)
+                db.session.commit()
+                success_message = 'Password updated successfully!'
+    
+    return render_template(
+        'profile.html', 
+        user=current_user, 
+        form_errors=form_errors,
+        success_message=success_message
+    )
 
 # Add this new API endpoint for client autocomplete
 @app.route('/api/search-clients/<query>')
