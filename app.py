@@ -687,14 +687,22 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     if request.method == 'POST':
-        username = request.form['username']
+        username_or_email = request.form['username']
         password = request.form['password']
         remember_me = 'remember_me' in request.form
-        user = User.query.filter_by(username=username).first()
+        
+        # Try to find user by username first
+        user = User.query.filter_by(username=username_or_email).first()
+        
+        # If not found by username, try email
+        if user is None:
+            user = User.query.filter_by(email=username_or_email).first()
+            
         # Check if the user exists and password is correct
         if user is None or not user.check_password(password):
-            flash('Invalid username or password', 'danger')
+            flash('Invalid username/email or password', 'danger')
             return redirect(url_for('login'))
+            
         # Log the user in
         login_user(user, remember=remember_me)
         flash(f'Welcome back, {user.username}!', 'success')
