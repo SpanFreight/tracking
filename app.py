@@ -1186,8 +1186,8 @@ def add_container():
                 )
                 db.session.add(container_status)
                 
-                # If status is 'discharged', also set the container's stripping date if not already set
-                if status == 'discharged' and not stripping_date:
+                # If status is 'emptied', set the container's stripping date if not already set
+                if status == 'emptied' and not stripping_date:
                     new_container.stripping_date = date
                     
                 # If vessel is selected and status is 'loaded', create a movement record
@@ -1318,8 +1318,8 @@ def update_status(id):
                 container_id=container.id
             )
             
-            # If status is being changed to discharged, set stripping date
-            if status == 'discharged':
+            # If status is being changed to emptied, set stripping date
+            if status == 'emptied':
                 container.stripping_date = date
             db.session.add(new_status)
             db.session.commit()
@@ -2031,8 +2031,7 @@ def discharge_container(id):
             container_id=container.id   
         )
         
-        # Set the stripping date to the operation date when discharged
-        container.stripping_date = operation_date
+        # Remove setting stripping date on discharge - will be set when emptied
         
         db.session.add(movement)
         db.session.add(status)
@@ -2048,7 +2047,7 @@ def discharge_container(id):
             refreshed_status = container.get_current_status()
             logger.info(f"After discharge - Container status from method: {refreshed_status.status if refreshed_status else 'None'}")
             
-            flash(f'Container {container.container_number} discharged from vessel {vessel.name}. Stripping date set to {operation_date.strftime("%Y-%m-%d")}.', 'success')
+            flash(f'Container {container.container_number} discharged from vessel {vessel.name}.', 'success')
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error during discharge operation: {str(e)}")
@@ -2246,8 +2245,7 @@ def bulk_discharge_containers():
                 container_id=container_id   
             )
             
-            # Set the stripping date to the operation date when discharged
-            container.stripping_date = operation_date
+            # Remove setting stripping date on discharge - will be set when emptied
             
             db.session.add(movement)
             db.session.add(status)
@@ -2946,6 +2944,11 @@ def bulk_status_update():
                 container_id=container_id
             )
             db.session.add(new_status)
+            
+            # Set stripping date if status is emptied
+            if status == 'emptied':
+                container.stripping_date = operation_date
+                
             success_count += 1
         except Exception as e:
             error_messages.append(f"Error with container ID {container_id}: {str(e)}")
@@ -2970,7 +2973,12 @@ def bulk_status_update():
 @login_required  # Protect API endpoints
 def get_available_vessels():
     """Get vessels that are available for loading (not departed)"""
-    vessels = Vessel.query.filter(Vessel.status != 'Departed').all()
+    # Query vessels that haven't departed, order by created_at (most recent first), limit to 5
+    vessels = Vessel.query.filter(Vessel.status != 'Departed')\
+                         .order_by(Vessel.created_at.desc())\
+                         .limit(5)\
+                         .all()
+    
     result = []
     for vessel in vessels:
         result.append({
