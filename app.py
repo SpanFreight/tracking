@@ -1856,6 +1856,15 @@ def update_vessel(id):
         vessel.current_destination = request.form.get('current_destination', '')
         new_status = request.form.get('status', 'En Route')
         
+        # Save the original ETA before any changes
+        original_eta = vessel.eta
+        
+        # Update ETA if provided
+        if request.form.get('eta'):
+            vessel.eta = datetime.strptime(request.form['eta'], '%Y-%m-%d')
+        else:
+            vessel.eta = None
+            
         # Handle vessel status change to Arrived from any other status
         if original_status != 'Arrived' and new_status == 'Arrived':
             # Update current location to destination if available
@@ -1868,11 +1877,12 @@ def update_vessel(id):
             loaded_containers = vessel.get_loaded_containers()
             container_count = 0
             for container in loaded_containers:
-                container.arrival_date = vessel.eta or datetime.now()
+                # Use vessel's original ETA as the arrival date for consistency
+                container.arrival_date = original_eta or vessel.eta or datetime.now()
                 container_count += 1
             
             if container_count > 0:
-                flash(f'Updated arrival date for {container_count} containers to match vessel arrival.', 'info')
+                flash(f'Updated arrival date for {container_count} containers to match vessel arrival ({original_eta or vessel.eta or datetime.now()}).', 'info')
         
         # Handle vessel status change from Departed to Arrived (keep existing code)
         if original_status == 'Departed' and new_status == 'Arrived':
@@ -2314,13 +2324,14 @@ def update_vessel_statuses_auto(vessel_id=None):
                 # If vessel arrives, update location to be the destination
                 if vessel.current_destination:
                     vessel.current_location = vessel.current_destination
-                    vessel.current_destination = "---"
+                    vessel.current_destination = ""
                 
                 # Update arrival date for all containers on this vessel
                 loaded_containers = vessel.get_loaded_containers()
                 for container in loaded_containers:
-                    container.arrival_date = vessel.eta or today
-                    logger.info(f"Updated arrival date for container {container.container_number} to match vessel {vessel.name}'s arrival")
+                    # Use vessel's ETA as the arrival date, not today's date
+                    container.arrival_date = vessel.eta
+                    logger.info(f"Updated arrival date for container {container.container_number} to match vessel {vessel.name}'s arrival date: {vessel.eta}")
                 
                 updated = True
         else:
@@ -2332,17 +2343,18 @@ def update_vessel_statuses_auto(vessel_id=None):
                     # If vessel arrives, update location to be the destination
                     if vessel.current_destination:
                         vessel.current_location = vessel.current_destination
-                        vessel.current_destination = "---"
+                        vessel.current_destination = ""
                     
                     # Update arrival date for all containers on this vessel
                     loaded_containers = vessel.get_loaded_containers()
                     container_count = 0
                     for container in loaded_containers:
-                        container.arrival_date = vessel.eta or today
+                        # Use vessel's ETA as the arrival date, not today's date
+                        container.arrival_date = vessel.eta
                         container_count += 1
                     
                     if container_count > 0:
-                        logger.info(f"Updated arrival date for {container_count} containers on vessel {vessel.name} to {vessel.eta or today}")
+                        logger.info(f"Updated arrival date for {container_count} containers on vessel {vessel.name} to {vessel.eta}")
                     
                     updated = True
         
