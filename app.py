@@ -1856,10 +1856,7 @@ def update_vessel(id):
         vessel.current_destination = request.form.get('current_destination', '')
         new_status = request.form.get('status', 'En Route')
         
-        # Save the original ETA before any changes
-        original_eta = vessel.eta
-        
-        # Update ETA if provided
+        # Update ETA if provided - do this before status changes
         if request.form.get('eta'):
             vessel.eta = datetime.strptime(request.form['eta'], '%Y-%m-%d')
         else:
@@ -1877,12 +1874,12 @@ def update_vessel(id):
             loaded_containers = vessel.get_loaded_containers()
             container_count = 0
             for container in loaded_containers:
-                # Use vessel's original ETA as the arrival date for consistency
-                container.arrival_date = original_eta or vessel.eta or datetime.now()
+                # Always use the current vessel ETA value (which may have just been updated)
+                container.arrival_date = vessel.eta or datetime.now()
                 container_count += 1
             
             if container_count > 0:
-                flash(f'Updated arrival date for {container_count} containers to match vessel arrival ({original_eta or vessel.eta or datetime.now()}).', 'info')
+                flash(f'Updated arrival date for {container_count} containers to match vessel arrival date ({vessel.eta or datetime.now()}).', 'info')
         
         # Handle vessel status change from Departed to Arrived (keep existing code)
         if original_status == 'Departed' and new_status == 'Arrived':
@@ -1918,11 +1915,6 @@ def update_vessel(id):
         
         # Set the new vessel status
         vessel.status = new_status
-        
-        if request.form.get('eta'):
-            vessel.eta = datetime.strptime(request.form['eta'], '%Y-%m-%d')
-        else:
-            vessel.eta = None
         
         db.session.commit()
         flash('Vessel updated successfully!', 'success')
