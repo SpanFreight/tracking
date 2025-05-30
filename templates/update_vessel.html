@@ -47,13 +47,13 @@
             
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="current_location" class="form-label">Current Location</label>
+                    <label for="current_location" class="form-label">Current Port</label>
                     <input type="text" class="form-control" id="current_location" name="current_location" value="{{ vessel.current_location or '' }}" required>
                     <div class="form-text">Port or sea location where the vessel is currently</div>
                 </div>
                 
                 <div class="col-md-6 mb-3">
-                    <label for="current_destination" class="form-label">Current Destination</label>
+                    <label for="current_destination" class="form-label">Next Port</label>
                     <input type="text" class="form-control" id="current_destination" name="current_destination" value="{{ vessel.current_destination or '' }}">
                     <div class="form-text">Port where the vessel is headed</div>
                 </div>
